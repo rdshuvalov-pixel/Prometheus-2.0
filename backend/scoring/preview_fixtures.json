@@ -1,0 +1,44 @@
+{
+  "fixtures": [
+    {
+      "id": "fintech_heavy",
+      "features": {
+        "critical": {
+          "product_management": { "value": true, "points": 10, "evidence": [] },
+          "work_format_fit": { "value": true, "points": 10, "evidence": [] },
+          "seniority_fit": { "value": true, "points": 10, "evidence": [] },
+          "full_time": { "value": true, "points": 5, "evidence": [] },
+          "location_fit": { "value": true, "points": 5, "evidence": [] }
+        },
+        "experience": {
+          "fintech_or_ecommerce": { "points": 9, "evidence": ["payments"] },
+          "b2b_saas": { "points": 6, "evidence": [] },
+          "ownership_roadmap_discovery": { "points": 5, "evidence": [] },
+          "responsibility_match": { "points": 5, "evidence": [] },
+          "task_match": { "points": 4, "evidence": [] }
+        },
+        "skills": {},
+        "strategy_growth": { "growth_monetisation": { "points": 4, "evidence": [] } },
+        "company_context": {},
+        "bonuses": {}
+      }
+    },
+    {
+      "id": "group_a_fail",
+      "features": {
+        "critical": {
+          "product_management": { "value": false, "points": 0, "evidence": [] },
+          "work_format_fit": { "value": true, "points": 10, "evidence": [] },
+          "seniority_fit": { "value": true, "points": 10, "evidence": [] },
+          "full_time": { "value": true, "points": 5, "evidence": [] },
+          "location_fit": { "value": true, "points": 5, "evidence": [] }
+        },
+        "experience": {},
+        "skills": {},
+        "strategy_growth": {},
+        "company_context": {},
+        "bonuses": {}
+      }
+    }
+  ]
+}

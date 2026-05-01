@@ -1,0 +1,14 @@
+[Unit]
+Description=Prometheus 2.0 full pipeline
+After=docker.service network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/prometheus-20
+EnvironmentFile=/opt/prometheus-20/.env
+ExecStart=/usr/bin/docker compose -f infra/docker-compose.yml run --rm pipeline python -m backend.pipeline.run_crawl --tier all && \
+  python -m backend.pipeline.run_enrich && python -m backend.pipeline.run_score && python -m backend.pipeline.run_write
+# Упростите под ваш путь к venv / контейнеру
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,22 @@
+# ISO-подобные коды и ключевые слова для EU / EMEA
+eu_keywords:
+  - EU
+  - Europe
+  - European
+  - EMEA
+  - Portugal
+  - Lisbon
+  - Lisbon area
+  - CET
+  - CET-compatible
+  - Worldwide
+  - Global
+  - Remote Europe
+  - Remote EU
+
+reject_country_only:
+  - US-only
+  - USA only
+  - United States only
+  - Canada only
+  - UK only

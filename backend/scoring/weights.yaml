@@ -1,0 +1,36 @@
+# Prometei scoring — суммы по группам (prometei_scoring_model.md)
+# Смещение под профиль: FinTech / B2B SaaS / growth / интеграции (2026-05)
+critical:
+  product_management: 10
+  work_format_fit: 10
+  seniority_fit: 10
+  full_time: 5
+  location_fit: 5
+experience:
+  fintech_or_ecommerce: 7
+  b2b_saas: 6
+  ownership_roadmap_discovery: 5
+  responsibility_match: 5
+  task_match: 4
+skills:
+  analytics: 4
+  ui_ux: 3
+  process_design: 3
+  english_b2: 3
+  agile: 2
+  api_integrations: 3
+  dev_team_collab: 3
+strategy_growth:
+  growth_monetisation: 4
+  new_product_market: 2
+  metrics: 3
+  stakeholders: 2
+company_context:
+  watchlist_tier: 2
+  familiar_market: 1
+  scale_up_plg: 1
+  senior_compensation: 1
+bonuses:
+  known_product: 2
+  cultural_fit: 1
+  urgent_hiring: 2

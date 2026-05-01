@@ -2,6 +2,26 @@
 
 Выполняется вручную после локального прогона пайплайна и заполненного `.env`.
 
+## Локальный прогон (после `SUPABASE_*` + `OPENROUTER_API_KEY` в `.env`)
+
+```bash
+python -m backend.scripts.seed_profile
+python -m backend.llm.smoke
+python -m backend.scripts.build_targets
+python -m backend.pipeline.run_crawl --tier 1 --limit 5
+python -m backend.pipeline.run_enrich --batch 5
+python -m backend.pipeline.run_score --batch 5
+python -m backend.pipeline.run_write --batch 3
+```
+
+Проверка в Supabase → SQL Editor:
+
+```sql
+select count(*) as vacancies from vacancies;
+select count(*) as letters from cover_letters;
+select id, company, role_title, score, status from vacancies order by created_at desc limit 10;
+```
+
 ## Vercel (frontend)
 
 1. GitHub: создайте приватный репозиторий, добавьте remote и выполните первый push из корня проекта.

@@ -27,4 +27,6 @@ cd frontend && npm install && npm run dev
 
 Деплой UI: в Vercel root directory = `frontend`, переменные `NEXT_PUBLIC_SUPABASE_*`, `SUPABASE_SERVICE_ROLE_KEY`, опционально `PROMETHEUS_API_URL` (Preview весов).
 
-См. `docs/setup.md`, чеклист продакшена — `docs/BLOCK_B_DEPLOY.md`.
+См. `docs/setup.md`, чеклист продакшена — [`docs/BLOCK_B_DEPLOY.md`](docs/BLOCK_B_DEPLOY.md).  
+Миграции БД: [`db/bundle_migrations_0001_0007.sql`](db/bundle_migrations_0001_0007.sql) или `python -m backend.scripts.apply_migrations` (нужен [`DATABASE_URL`](.env.example)).  
+Первый push: [`docs/GITHUB_REMOTE.md`](docs/GITHUB_REMOTE.md). Vercel / VPS / E2E: [`docs/MVP_LAUNCH_REMOTE.md`](docs/MVP_LAUNCH_REMOTE.md).

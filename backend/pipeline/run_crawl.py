@@ -5,11 +5,10 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+from datetime import timezone
 from pathlib import Path
 
 import yaml
-from datetime import datetime, timezone
-
 from backend.crawlers.ashby import ashby_org_slug, fetch_ashby_board
 from backend.crawlers.breezy import breezy_slug, fetch_breezy
 from backend.crawlers.greenhouse import board_token_from_url, fetch_greenhouse

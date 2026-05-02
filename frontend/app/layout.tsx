@@ -6,6 +6,7 @@ import "./globals.css";
 export const metadata: Metadata = {
   title: "Прометей 2.0",
   description: "Pipeline и вакансии",
+  icons: { icon: "/icon.svg", shortcut: "/icon.svg" },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

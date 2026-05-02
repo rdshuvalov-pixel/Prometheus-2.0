@@ -52,3 +52,39 @@ select count(*) as cover_letters from cover_letters;
 2. `/vacancies` — список строк при наличии данных и RLS `authenticated`.
 3. После входа по magic link в шапке: email и кнопка **Выйти**; после **Выйти** — ссылка **Вход**.
 4. Опционально: Preview весов на странице профиля (нужен `PROMETHEUS_API_URL` на Vercel).
+
+## 5. Cookies / 500 на страницах и обновление моделей на VPS
+
+После деплоя фронта с `middleware.ts` и `getAll`/`setAll` в `createServerSupabase` ошибка «Cookies can only be modified…» на `/vacancies` должна уйти.
+
+Чтобы в контейнере API подтянулись новые `backend/llm/models.yaml` (Qwen):
+
+```bash
+cd /opt/prometheus-20
+git pull origin main
+
+cd infra
+docker compose build --no-cache api
+docker compose up -d --force-recreate api
+
+docker compose exec api cat /app/backend/llm/models.yaml
+```
+
+Разовый прогон LLM без кэша (новые вызовы и расчёт `cost` в `llm_calls`):
+
+```bash
+docker compose exec -e LLM_CACHE=0 api python -m backend.pipeline.run_enrich --batch 5
+docker compose exec -e LLM_CACHE=0 api python -m backend.pipeline.run_score --batch 5
+docker compose exec -e LLM_CACHE=0 api python -m backend.pipeline.run_write --batch 3
+```
+
+Проверка моделей и стоимости:
+
+```sql
+select model,
+       count(*) as calls,
+       round(sum(coalesce(cost,0))::numeric, 4) as usd
+from llm_calls
+group by 1
+order by 2 desc;
+```

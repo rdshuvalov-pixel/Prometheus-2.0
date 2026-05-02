@@ -8,7 +8,10 @@ export default function LoginPage() {
   const [msg, setMsg] = useState<string | null>(null);
   async function send() {
     const supabase = createClient();
-    const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin } });
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
+    });
     setMsg(error ? error.message : "Проверьте почту");
   }
   return (

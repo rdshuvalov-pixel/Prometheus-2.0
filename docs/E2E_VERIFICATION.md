@@ -107,3 +107,17 @@ where status in ('New','Scored')
 ```
 
 Проверьте выборкой перед массовым `update` (`select id, company, role_title from vacancies where …`).
+
+Примените миграцию `db/migrations/0009_country_blacklist.sql` в SQL Editor (код отказа `country_blacklisted` для фильтра локаций).
+
+## 7. Обогащение и скоринг только «свежих» вакансий
+
+`run_enrich` и `run_score` поддерживают `--since YYYY-MM-DD` (UTC, начало дня). **По умолчанию** обрабатываются только строки с `created_at` от **сегодняшнего дня UTC**, чтобы не задевать старые записи.
+
+Примеры:
+
+```bash
+docker compose exec api python -m backend.pipeline.run_enrich --batch 50
+docker compose exec api python -m backend.pipeline.run_score --batch 50
+docker compose exec api python -m backend.pipeline.run_enrich --since 2026-01-01 --batch 200
+```

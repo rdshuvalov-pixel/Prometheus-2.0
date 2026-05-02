@@ -7,6 +7,7 @@ from backend.pipeline.normalize.date_parse import is_stale
 from backend.pipeline.normalize.location import (
     detect_hybrid_lisbon,
     hybrid_location_blacklisted,
+    location_in_blacklist,
     location_signals_eu_or_global,
     location_signals_reject_region,
 )
@@ -57,6 +58,10 @@ def post_collection_filter(
 
     if location_signals_reject_region(full_text):
         return PostCollectionResult(False, "us_only", warnings)
+
+    bad_country = location_in_blacklist(full_text)
+    if bad_country is not None and not location_signals_eu_or_global(full_text) and not hybrid_lisbon:
+        return PostCollectionResult(False, "country_blacklisted", warnings)
 
     if wf == "remote" or wf == "hybrid":
         if not location_signals_eu_or_global(full_text) and not hybrid_lisbon:

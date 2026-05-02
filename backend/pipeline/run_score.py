@@ -17,13 +17,42 @@ from backend.scoring.decision import vacancy_status_from_score
 from backend.scoring.engine import compute_score, match_label
 
 
+def _merge_warnings(existing: object, *codes: str) -> list[str]:
+    cur = list(existing) if isinstance(existing, list) else []
+    out = [*cur]
+    for c in codes:
+        if c not in out:
+            out.append(c)
+    return out
+
+
+def _since_start_iso(arg: str | None) -> str:
+    if arg:
+        parts = arg.strip().split("-")
+        if len(parts) == 3:
+            y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
+            return datetime(y, m, d, tzinfo=timezone.utc).isoformat()
+    today = datetime.now(timezone.utc).date()
+    return datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
+
+
 async def score_one(
     v: dict,
     overrides: dict | None,
     run_id: str | None,
     ext: object | None = None,
 ) -> None:
-    text = f"{v.get('role_title','')}\n{v.get('description','')}"
+    desc = (v.get("description") or "").strip()
+    if len(desc) < 100 and not v.get("evidence"):
+        cli = get_supabase()
+        if cli is None:
+            return
+        cli.table("vacancies").update(
+            {"warnings": _merge_warnings(v.get("warnings"), "short_description")}
+        ).eq("id", v["id"]).execute()
+        return
+
+    text = f"{v.get('role_title', '')}\n{v.get('description', '')}"
     if ext is None:
         ext = await extract_scoring_features(text, run_id=run_id, vacancy_id=str(v.get("id")))
     feats = ext.model_dump()
@@ -66,12 +95,14 @@ async def main_async(args: argparse.Namespace) -> None:
     cli = get_supabase()
     if cli is None:
         return
+    since_iso = _since_start_iso(args.since)
     q = (
         cli.table("vacancies")
-        .select("id, role_title, description, status")
+        .select("id, role_title, description, status, evidence, warnings, created_at")
         .eq("status", "New")
         .not_.is_("enrichment_at", "null")
         .is_("score", "null")
+        .gte("created_at", since_iso)
         .limit(args.batch)
     )
     if profile_id:
@@ -79,16 +110,24 @@ async def main_async(args: argparse.Namespace) -> None:
     res = q.execute()
     rows = getattr(res, "data", None) or []
 
+    to_score: list[dict] = []
+    for v in rows:
+        if len((v.get("description") or "").strip()) < 100 and not v.get("evidence"):
+            await score_one(v, overrides, args.run_id, None)
+        else:
+            to_score.append(v)
+    rows = to_score
+
     if args.batch_mode and len(rows) > 1:
         chunk_size = 5
         for i in range(0, len(rows), chunk_size):
             chunk = rows[i : i + chunk_size]
-            texts = [f"{v.get('role_title','')}\n{v.get('description','')}" for v in chunk]
+            if not chunk:
+                continue
+            texts = [f"{v.get('role_title', '')}\n{v.get('description', '')}" for v in chunk]
             vids = [str(v.get("id")) for v in chunk]
             try:
-                extracted = await extract_scoring_features_batch(
-                    texts, run_id=args.run_id, vacancy_ids=vids
-                )
+                extracted = await extract_scoring_features_batch(texts, run_id=args.run_id, vacancy_ids=vids)
             except ValueError:
                 raise
             except Exception:
@@ -113,6 +152,12 @@ def main() -> None:
         "--batch-mode",
         action="store_true",
         help="Один LLM-вызов на 5 вакансий (extract batch)",
+    )
+    p.add_argument(
+        "--since",
+        default=None,
+        metavar="YYYY-MM-DD",
+        help="Обрабатывать только vacancies с created_at >= этой даты UTC (по умолчанию — сегодня UTC)",
     )
     p.add_argument("--profile-id", dest="profile_id", default=None)
     args = p.parse_args()

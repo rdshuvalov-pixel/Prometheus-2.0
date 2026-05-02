@@ -73,3 +73,12 @@ def hybrid_location_blacklisted(text: str) -> str | None:
         if loc.lower() in low:
             return loc
     return None
+
+
+def location_in_blacklist(text: str) -> str | None:
+    """Любое упоминание локации из hybrid_reject_locations (Cyprus, Georgia, города)."""
+    low = text.lower()
+    for loc in _hybrid_reject_locations():
+        if loc.lower() in low:
+            return loc
+    return None

@@ -20,3 +20,13 @@ reject_country_only:
   - United States only
   - Canada only
   - UK only
+
+hybrid_reject_locations:
+  - Cyprus
+  - Limassol
+  - Nicosia
+  - Paphos
+  - Larnaca
+  - Georgia
+  - Tbilisi
+  - Batumi

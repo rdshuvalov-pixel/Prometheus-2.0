@@ -88,3 +88,22 @@ from llm_calls
 group by 1
 order by 2 desc;
 ```
+
+## 6. Чистка локационного blacklist (ретро)
+
+После деплоя фильтра `hybrid_reject_locations` старые вакансии с hybrid вне Lisbon (Cyprus / Georgia и т.д.) можно пометить отклонёнными в SQL Editor:
+
+```sql
+update vacancies
+set status = 'Rejected', reject_reason = 'hybrid_outside_lisbon'
+where status in ('New','Scored')
+  and (
+    lower(description) like '%cyprus%'
+    or lower(description) like '%georgia%'
+    or lower(description) like '%tbilisi%'
+    or lower(description) like '%limassol%'
+  )
+  and lower(description) like '%hybrid%';
+```
+
+Проверьте выборкой перед массовым `update` (`select id, company, role_title from vacancies where …`).

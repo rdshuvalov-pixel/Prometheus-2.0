@@ -24,7 +24,7 @@ export function CopyFormal({ body }: { body: string | null }) {
       onClick={onClick}
       disabled={disabled}
       title={disabled ? "Нет formal письма (запустите run_write)" : undefined}
-      className="px-3 py-1.5 text-sm rounded border border-slate-600 bg-slate-800 hover:bg-slate-700 disabled:opacity-40 disabled:cursor-not-allowed"
+      className="px-3 py-1.5 text-sm rounded border border-candy-200 bg-candy-500 text-white hover:bg-candy-600 disabled:opacity-40 disabled:cursor-not-allowed"
     >
       {disabled ? "Нет formal письма" : label}
     </button>

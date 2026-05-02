@@ -47,3 +47,29 @@ def location_signals_reject_region(text: str) -> bool:
 
 def detect_hybrid_lisbon(text: str) -> bool:
     return bool(re.search(r"(?i)lisbon", text)) and bool(re.search(r"(?i)hybrid", text))
+
+
+_hybrid_reject_locations_cache: list[str] | None = None
+
+
+def _hybrid_reject_locations() -> list[str]:
+    global _hybrid_reject_locations_cache
+    if _hybrid_reject_locations_cache is not None:
+        return _hybrid_reject_locations_cache
+    if not _DATA.exists():
+        _hybrid_reject_locations_cache = []
+        return _hybrid_reject_locations_cache
+    raw = yaml.safe_load(_DATA.read_text(encoding="utf-8"))
+    _hybrid_reject_locations_cache = list(raw.get("hybrid_reject_locations", []))
+    return _hybrid_reject_locations_cache
+
+
+def hybrid_location_blacklisted(text: str) -> str | None:
+    """Если в тексте упомянут hybrid и одна из локаций блэк-листа — вернуть имя локации."""
+    low = text.lower()
+    if "hybrid" not in low:
+        return None
+    for loc in _hybrid_reject_locations():
+        if loc.lower() in low:
+            return loc
+    return None

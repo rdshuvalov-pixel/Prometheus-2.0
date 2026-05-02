@@ -6,6 +6,7 @@ from datetime import datetime
 from backend.pipeline.normalize.date_parse import is_stale
 from backend.pipeline.normalize.location import (
     detect_hybrid_lisbon,
+    hybrid_location_blacklisted,
     location_signals_eu_or_global,
     location_signals_reject_region,
 )
@@ -48,6 +49,11 @@ def post_collection_filter(
 
     if wf == "hybrid" and hybrid_lisbon_only and not hybrid_lisbon:
         return PostCollectionResult(False, "hybrid_outside_lisbon", warnings)
+
+    if "hybrid" in full_text.lower():
+        bad = hybrid_location_blacklisted(full_text)
+        if bad is not None and not hybrid_lisbon:
+            return PostCollectionResult(False, "hybrid_outside_lisbon", warnings)
 
     if location_signals_reject_region(full_text):
         return PostCollectionResult(False, "us_only", warnings)

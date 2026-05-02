@@ -1,3 +1,10 @@
-cheap: openai/gpt-4o-mini
-strong: openai/gpt-4o
+cheap: qwen/qwen3.5-flash-02-23
+strong: qwen/qwen3.5-35b-a3b
 base_url: https://openrouter.ai/api/v1
+prices:
+  qwen/qwen3.5-flash-02-23:
+    in: 0.10
+    out: 0.40
+  qwen/qwen3.5-35b-a3b:
+    in: 0.25
+    out: 2.00

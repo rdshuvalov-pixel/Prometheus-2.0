@@ -37,13 +37,18 @@ Output → строго JSON
 
 ## Модели
 
-Cheap model:
-- extraction
-- classification
+Cheap model: `qwen/qwen3.5-flash-02-23`
+- `classify_location`
+- `extract_role_semantics`
+- `extract_scoring_features`
 
-Strong model:
-- scoring explanation
-- writing
+Strong model: `qwen/qwen3.5-35b-a3b`
+- `explain_fit`
+- writing (formal cover letter)
+- fallback при ошибке парсинга/валидации
+- повтор при `confidence < 0.6`
+
+Прайсы (USD за 1M токенов, основной тариф OpenRouter) задаются в [backend/llm/models.yaml](backend/llm/models.yaml) → блок `prices`. Cost попадает в `llm_calls.cost` (см. [backend/llm/gateway.py](backend/llm/gateway.py)).
 
 ## Запрещено
 

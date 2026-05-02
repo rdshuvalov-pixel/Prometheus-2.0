@@ -44,6 +44,29 @@ def _router_auto(prompt_chars: int, tier_hint: str | None) -> str:
     return pick_model("cheap")
 
 
+def estimate_cost_usd(model: str, tokens_in: int | None, tokens_out: int | None) -> float | None:
+    """USD по прайсам из models.yaml (USD за 1M токенов). None если прайс не задан."""
+    if tokens_in is None and tokens_out is None:
+        return None
+    cfg = _load_models()
+    prices = cfg.get("prices") if isinstance(cfg, dict) else None
+    if not isinstance(prices, dict):
+        return None
+    p = prices.get(model)
+    if not isinstance(p, dict):
+        return None
+    p_in = p.get("in")
+    p_out = p.get("out")
+    if p_in is None and p_out is None:
+        return None
+    cost = 0.0
+    if tokens_in and p_in is not None:
+        cost += (float(tokens_in) / 1_000_000.0) * float(p_in)
+    if tokens_out and p_out is not None:
+        cost += (float(tokens_out) / 1_000_000.0) * float(p_out)
+    return round(cost, 6)
+
+
 class JSONParseError(ValueError):
     pass
 
@@ -130,6 +153,7 @@ async def chat_json(
     usage = data.get("usage") or {}
     tokens_in = usage.get("prompt_tokens")
     tokens_out = usage.get("completion_tokens")
+    cost_usd = estimate_cost_usd(model, tokens_in, tokens_out)
 
     try:
         parsed = _extract_json(content)
@@ -144,7 +168,7 @@ async def chat_json(
             response=content[:8000],
             tokens_in=tokens_in,
             tokens_out=tokens_out,
-            cost=None,
+            cost=cost_usd,
             latency_ms=latency_ms,
             status=f"validate_error: {e}",
         )
@@ -159,7 +183,7 @@ async def chat_json(
         response=content[:4000],
         tokens_in=tokens_in,
         tokens_out=tokens_out,
-        cost=None,
+        cost=cost_usd,
         latency_ms=latency_ms,
         status="ok",
     )

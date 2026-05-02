@@ -8,27 +8,18 @@ import os
 
 from backend.db.client import apply_active_profile_id, get_supabase
 from backend.writer.formal import generate_formal
-from backend.writer.informal import generate_informal
 from backend.writer.profile_loader import load_profile_for_writing
 
 
 async def write_one(v: dict, profile, run_id: str | None) -> None:
     block = f"{v.get('role_title','')}\n{v.get('company','')}\n{v.get('description','')}"
-    formal_b, informal_b = await asyncio.gather(
-        generate_formal(
-            profile.resume_md,
-            profile.interview_md,
-            profile.work_history_md,
-            block,
-            run_id=run_id,
-            vacancy_id=str(v.get("id")),
-        ),
-        generate_informal(
-            profile.resume_md,
-            block,
-            run_id=run_id,
-            vacancy_id=str(v.get("id")),
-        ),
+    formal_b = await generate_formal(
+        profile.resume_md,
+        profile.interview_md,
+        profile.work_history_md,
+        block,
+        run_id=run_id,
+        vacancy_id=str(v.get("id")),
     )
     cli = get_supabase()
     if cli is None:
@@ -36,10 +27,6 @@ async def write_one(v: dict, profile, run_id: str | None) -> None:
     vid = str(v["id"])
     cli.table("cover_letters").upsert(
         {"vacancy_id": vid, "kind": "formal", "body": formal_b, "model": "openrouter"},
-        on_conflict="vacancy_id,kind",
-    ).execute()
-    cli.table("cover_letters").upsert(
-        {"vacancy_id": vid, "kind": "informal", "body": informal_b, "model": "openrouter"},
         on_conflict="vacancy_id,kind",
     ).execute()
 

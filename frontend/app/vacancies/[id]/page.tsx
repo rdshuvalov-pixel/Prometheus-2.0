@@ -7,7 +7,8 @@ export default async function VacancyPage({ params }: { params: { id: string } }
   const { data: letters } = await supabase
     .from("cover_letters")
     .select("*")
-    .eq("vacancy_id", params.id);
+    .eq("vacancy_id", params.id)
+    .eq("kind", "formal");
 
   if (!v) return <p>Не найдено</p>;
 
@@ -21,10 +22,12 @@ export default async function VacancyPage({ params }: { params: { id: string } }
         {JSON.stringify(v.score_breakdown, null, 2)}
       </pre>
       <div>
-        <h2 className="font-medium">Письма</h2>
+        <h2 className="font-medium">Сопроводительное (formal)</h2>
+        {(letters || []).length === 0 && (
+          <p className="text-slate-500 text-sm">Пока нет письма. Запустите run_write.</p>
+        )}
         {(letters || []).map((l: { kind: string; body: string }) => (
           <section key={l.kind} className="mt-2">
-            <h3 className="text-sm text-slate-400">{l.kind}</h3>
             <pre className="whitespace-pre-wrap text-sm bg-slate-900 p-2 rounded">{l.body}</pre>
           </section>
         ))}

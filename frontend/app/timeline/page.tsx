@@ -1,16 +1,21 @@
 import { createServerSupabase } from "@/lib/supabase/server";
 
-export default async function TimelinePage() {
+export default async function TimelinePage({
+  searchParams,
+}: {
+  searchParams: Record<string, string | string[] | undefined>;
+}) {
   const supabase = await createServerSupabase();
-  const { data: events } = await supabase
-    .from("pipeline_events")
-    .select("*")
-    .order("ts", { ascending: false })
-    .limit(100);
+  const runId = typeof searchParams.run_id === "string" ? searchParams.run_id : undefined;
+  let q = supabase.from("pipeline_events").select("*").order("ts", { ascending: false });
+  if (runId) {
+    q = q.eq("run_id", runId);
+  }
+  const { data: events } = await q.limit(100);
 
   return (
     <div className="space-y-2">
-      <h1 className="text-2xl font-semibold">Timeline</h1>
+      <h1 className="text-2xl font-semibold">Timeline{runId ? ` · run ${runId.slice(0, 8)}…` : ""}</h1>
       <ul className="space-y-2 text-sm">
         {(events || []).map((e: { id: string; ts: string; type: string; payload: unknown }) => (
           <li key={e.id} className="border border-slate-800 rounded p-2">

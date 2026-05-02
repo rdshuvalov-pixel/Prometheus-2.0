@@ -19,7 +19,6 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <body className="min-h-screen">
         <nav className="border-b border-slate-800 px-4 py-3 flex gap-6 text-sm items-center flex-wrap">
           <Link href="/">Дашборд</Link>
-          <Link href="/timeline">Timeline</Link>
           <Link href="/vacancies">Вакансии</Link>
           <Link href="/profile">Профиль</Link>
           <Link href="/cost">LLM cost</Link>

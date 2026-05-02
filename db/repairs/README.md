@@ -6,7 +6,7 @@
 
 ## `d_import_legacy_vacancies.sql` (шаг D)
 
-Перенос из `vacancies_legacy` (старая таблица после `ALTER RENAME`) в новую `public.vacancies` + заполнение `cover_letters` и `vacancy_sources`.
+Перенос из `vacancies_legacy` (старая таблица после `ALTER RENAME`) в новую `public.vacancies` + заполнение `cover_letters`. Таблицу `vacancy_sources` скрипт не трогает (схемы на старых БД отличаются).
 
 **Порядок:**
 

@@ -41,8 +41,18 @@ def main() -> None:
         "scoring_overrides": data.get("scoring_overrides"),
         "is_default": True,
     }
-    cli.table("candidate_profiles").delete().eq("is_default", True).execute()
-    cli.table("candidate_profiles").insert(row).execute()
+    try:
+        cli.table("candidate_profiles").delete().eq("is_default", True).execute()
+        cli.table("candidate_profiles").insert(row).execute()
+    except Exception as e:
+        err = str(e).lower()
+        if "row-level security" in err or "42501" in str(e):
+            print(
+                "Ошибка RLS: в SUPABASE_SERVICE_KEY должен быть ключ service_role "
+                "(Supabase → Settings → API → service_role secret), не anon. "
+                "Или выполните db/repairs/ensure_default_profile.sql в SQL Editor."
+            )
+        raise
     print(f"Seeded profile {row['id']}")
 
 

@@ -153,18 +153,7 @@ JOIN public.vacancies v
 WHERE trim(coalesce(l.cover_informal, '')) <> ''
 ON CONFLICT (vacancy_id, kind) DO NOTHING;
 
--- Источник для трассировки (без дубликатов при повторном запуске)
-INSERT INTO public.vacancy_sources (vacancy_id, source_url, tier, ats_type)
-SELECT v.id, COALESCE(NULLIF(trim(l.url), ''), 'legacy://' || l.id::text), l.tier, l.platform
-FROM public.vacancies_legacy l
-CROSS JOIN (SELECT id AS pid FROM public.candidate_profiles WHERE is_default = true LIMIT 1) d
-JOIN public.vacancies v
-  ON v.profile_id = d.pid
- AND v.url = COALESCE(NULLIF(trim(l.url), ''), 'legacy://' || l.id::text)
-WHERE NOT EXISTS (
-  SELECT 1 FROM public.vacancy_sources vs
-  WHERE vs.vacancy_id = v.id
-    AND vs.source_url = COALESCE(NULLIF(trim(l.url), ''), 'legacy://' || l.id::text)
-);
+-- vacancy_sources: не вставляем здесь — у разных БД схема отличается.
+-- Новые краулы сами заполнят vacancy_sources. При необходимости вручную по миграции 0003.
 
 COMMIT;

@@ -2,6 +2,8 @@
 
 Выполняется вручную после локального прогона пайплайна и заполненного `.env`.
 
+Чеклист совпадения env VPS/Vercel и смоук прод: [E2E_VERIFICATION.md](./E2E_VERIFICATION.md).
+
 ## Локальный прогон (после `SUPABASE_*` + `OPENROUTER_API_KEY` в `.env`)
 
 ```bash

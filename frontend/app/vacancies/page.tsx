@@ -55,23 +55,23 @@ export default async function VacanciesPage({
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-candy-700">Вакансии</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900">Вакансии</h1>
       <ul className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
         {(rows as VacancyRow[] | null)?.map((v) => {
           const formal = formalBody(v.cover_letters);
           return (
             <li
               key={v.id}
-              className="rounded-lg border border-candy-200 bg-white/70 p-4 flex flex-col gap-2"
+              className="rounded-lg border border-neutral-200 bg-white/90 shadow-sm p-4 flex flex-col gap-2"
             >
               <div>
                 <Link
                   href={`/vacancies/${v.id}`}
-                  className="text-lg font-medium text-candy-600 hover:text-candy-500 hover:underline"
+                  className="text-lg font-semibold text-candy-800 hover:text-candy-600 hover:underline"
                 >
                   {v.company} — {v.role_title}
                 </Link>
-                <p className="text-sm text-candy-600 mt-1">
+                <p className="text-sm text-neutral-700 mt-1">
                   Поиск: {formatDate(v.created_at)} · {v.status} · score {v.score ?? "—"}
                   {v.match_status ? ` · ${v.match_status}` : ""}
                 </p>
@@ -79,18 +79,18 @@ export default async function VacanciesPage({
                   href={v.url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs text-candy-600 hover:text-candy-500 break-all"
+                  className="text-xs text-neutral-600 hover:text-candy-800 break-all"
                 >
                   {v.url}
                 </a>
                 <div className="flex flex-wrap gap-1.5 mt-2">
                   {v.normalized_work_format && (
-                    <span className="text-xs px-2 py-0.5 rounded border border-candy-200 bg-candy-100 text-candy-700">
+                    <span className="text-xs px-2 py-0.5 rounded border border-neutral-200 bg-neutral-100 text-neutral-800">
                       {v.normalized_work_format}
                     </span>
                   )}
                   {v.normalized_location && (
-                    <span className="text-xs px-2 py-0.5 rounded border border-candy-200 bg-candy-100 text-candy-700">
+                    <span className="text-xs px-2 py-0.5 rounded border border-neutral-200 bg-neutral-100 text-neutral-800">
                       {v.normalized_location}
                     </span>
                   )}

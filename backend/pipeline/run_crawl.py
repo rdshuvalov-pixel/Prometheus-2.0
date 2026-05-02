@@ -79,7 +79,11 @@ async def main_async(args: argparse.Namespace) -> None:
 
     if args.tier == "4":
         run_id = insert_run(profile_id)
-        log_event(run_id, "crawl_started", {"tier": "4", "source": "jobspy"})
+        log_event(
+            run_id,
+            "crawl_started",
+            {"tier": "4", "source": "jobspy", "targets": 0, "targets_total_yaml": 0, "limit": args.limit},
+        )
         raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=args.limit)
         processed = len(raws)
         kept = 0
@@ -130,10 +134,20 @@ async def main_async(args: argparse.Namespace) -> None:
 
     data = yaml.safe_load(_TARGETS.read_text(encoding="utf-8"))
     tier_filter = args.tier
-    targets = [t for t in data.get("targets", []) if tier_filter in ("all", str(t.get("tier")))]
+    all_targets = data.get("targets", [])
+    targets = [t for t in all_targets if tier_filter in ("all", str(t.get("tier")))]
 
     run_id = insert_run(profile_id)
-    log_event(run_id, "crawl_started", {"tier": tier_filter, "targets": len(targets)})
+    log_event(
+        run_id,
+        "crawl_started",
+        {
+            "tier": tier_filter,
+            "targets": len(targets),
+            "targets_total_yaml": len(all_targets),
+            "limit": args.limit,
+        },
+    )
 
     from backend.db.client import get_supabase
 

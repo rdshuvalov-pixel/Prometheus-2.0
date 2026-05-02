@@ -62,10 +62,10 @@ function Table({
   const rows = Array.from(data.entries()).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
   return (
     <section className="space-y-2">
-      <h2 className="text-lg font-medium text-candy-700">{label}</h2>
-      <div className="overflow-x-auto rounded border border-candy-200 bg-white/70">
+      <h2 className="text-lg font-medium text-neutral-900">{label}</h2>
+      <div className="overflow-x-auto rounded border border-neutral-200 bg-white/90 shadow-sm">
         <table className="w-full text-sm">
-          <thead className="bg-candy-100/90 text-candy-700">
+          <thead className="bg-neutral-100 text-neutral-900">
             <tr>
               <th className="text-left px-3 py-2">{label}</th>
               <th className="text-right px-3 py-2">Calls</th>
@@ -77,14 +77,14 @@ function Table({
           <tbody>
             {rows.length === 0 && (
               <tr>
-                <td colSpan={5} className="text-center text-candy-600 py-3">
+                <td colSpan={5} className="text-center text-neutral-600 py-3">
                   Нет данных
                 </td>
               </tr>
             )}
             {rows.map(([k, a]) => (
-              <tr key={k} className="border-t border-candy-200">
-                <td className="px-3 py-2 text-candy-700 font-mono">{k}</td>
+              <tr key={k} className="border-t border-neutral-200">
+                <td className="px-3 py-2 text-neutral-900 font-mono">{k}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtInt(a.calls)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtInt(a.tokens_in)}</td>
                 <td className="px-3 py-2 text-right tabular-nums">{fmtInt(a.tokens_out)}</td>
@@ -102,7 +102,7 @@ export default async function CostPage() {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) {
-    return <p className="text-candy-700">Задайте SUPABASE_SERVICE_ROLE_KEY для серверной агрегации.</p>;
+    return <p className="text-neutral-900">Задайте SUPABASE_SERVICE_ROLE_KEY для серверной агрегации.</p>;
   }
   const supabase = createClient(url, key);
   const { data } = await supabase
@@ -117,31 +117,31 @@ export default async function CostPage() {
 
   return (
     <div className="space-y-6">
-      <h1 className="text-2xl font-semibold text-candy-700">LLM cost</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900">LLM cost</h1>
 
       <section className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <div className="rounded border border-candy-200 bg-white/70 p-3">
-          <p className="text-xs text-candy-600">Calls</p>
-          <p className="text-xl font-semibold tabular-nums text-candy-700">{fmtInt(total.calls)}</p>
+        <div className="rounded border border-neutral-200 bg-white/90 shadow-sm p-3">
+          <p className="text-xs text-neutral-600 font-medium">Calls</p>
+          <p className="text-xl font-semibold tabular-nums text-neutral-900">{fmtInt(total.calls)}</p>
         </div>
-        <div className="rounded border border-candy-200 bg-white/70 p-3">
-          <p className="text-xs text-candy-600">Tokens in</p>
-          <p className="text-xl font-semibold tabular-nums text-candy-700">{fmtInt(total.tokens_in)}</p>
+        <div className="rounded border border-neutral-200 bg-white/90 shadow-sm p-3">
+          <p className="text-xs text-neutral-600 font-medium">Tokens in</p>
+          <p className="text-xl font-semibold tabular-nums text-neutral-900">{fmtInt(total.tokens_in)}</p>
         </div>
-        <div className="rounded border border-candy-200 bg-white/70 p-3">
-          <p className="text-xs text-candy-600">Tokens out</p>
-          <p className="text-xl font-semibold tabular-nums text-candy-700">{fmtInt(total.tokens_out)}</p>
+        <div className="rounded border border-neutral-200 bg-white/90 shadow-sm p-3">
+          <p className="text-xs text-neutral-600 font-medium">Tokens out</p>
+          <p className="text-xl font-semibold tabular-nums text-neutral-900">{fmtInt(total.tokens_out)}</p>
         </div>
-        <div className="rounded border border-candy-200 bg-white/70 p-3">
-          <p className="text-xs text-candy-600">Cost USD</p>
-          <p className="text-xl font-semibold tabular-nums text-candy-700">{fmtUsd(total.cost_usd)}</p>
+        <div className="rounded border border-neutral-200 bg-white/90 shadow-sm p-3">
+          <p className="text-xs text-neutral-600 font-medium">Cost USD</p>
+          <p className="text-xl font-semibold tabular-nums text-neutral-900">{fmtUsd(total.cost_usd)}</p>
         </div>
       </section>
 
       <Table label="По моделям" data={byModel} />
       <Table label="По функциям" data={byFunction} />
 
-      <p className="text-xs text-candy-600">
+      <p className="text-xs text-neutral-600">
         Прайсы заданы в backend/llm/models.yaml; если для модели цена отсутствует, cost логируется как NULL.
       </p>
     </div>

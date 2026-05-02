@@ -3,6 +3,5 @@
 @tailwind utilities;
 
 body {
-  @apply antialiased text-candy-700 min-h-screen;
-  background: linear-gradient(165deg, rgb(255 247 250) 0%, rgb(253 235 243) 45%, rgb(255 247 250) 100%);
+  @apply antialiased text-neutral-900 min-h-screen;
 }

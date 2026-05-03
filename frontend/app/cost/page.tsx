@@ -1,4 +1,4 @@
-import { createClient } from "@supabase/supabase-js";
+import { createServerSupabase } from "@/lib/supabase/server";
 
 type CallRow = {
   model: string | null;
@@ -52,13 +52,7 @@ function fmtInt(n: number): string {
   return new Intl.NumberFormat("ru-RU").format(n);
 }
 
-function Table({
-  label,
-  data,
-}: {
-  label: string;
-  data: Map<string, Agg>;
-}) {
+function Table({ label, data }: { label: string; data: Map<string, Agg> }) {
   const rows = Array.from(data.entries()).sort((a, b) => b[1].cost_usd - a[1].cost_usd);
   return (
     <section className="space-y-2">
@@ -99,16 +93,25 @@ function Table({
 }
 
 export default async function CostPage() {
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) {
-    return <p className="text-neutral-900">Задайте SUPABASE_SERVICE_ROLE_KEY для серверной агрегации.</p>;
+  const supabase = await createServerSupabase();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+  if (!user) {
+    return <p className="text-neutral-900">Войдите в систему, чтобы увидеть LLM cost.</p>;
   }
-  const supabase = createClient(url, key);
-  const { data } = await supabase
+  const { data, error } = await supabase
     .from("llm_calls")
     .select("model, function, cost, tokens_in, tokens_out")
+    .order("id", { ascending: false })
     .limit(5000);
+  if (error) {
+    return (
+      <p className="text-neutral-900">
+        Не удалось загрузить llm_calls ({error.message}). Проверьте RLS таблицы.
+      </p>
+    );
+  }
 
   const calls = (data || []) as CallRow[];
   const total = totals(calls);

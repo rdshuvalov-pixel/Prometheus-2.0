@@ -110,6 +110,8 @@ where status in ('New','Scored')
 
 Примените миграцию `db/migrations/0009_country_blacklist.sql` в SQL Editor (код отказа `country_blacklisted` для фильтра локаций).
 
+После деплоя контейнера API (`docker compose build api && docker compose up -d --force-recreate api`) `run_crawl` пишет события `target_started`, `target_done`, `vacancy_rejected` — на дашборде появится таблица «По площадкам» (компания / найдено / kept / rejected / топ-причина). Для разовых полных прогонов используйте `--limit 0` (без лимита) или `--limit 198` для всех целей в `targets.yaml`.
+
 ## 7. Обогащение и скоринг только «свежих» вакансий
 
 `run_enrich` и `run_score` поддерживают `--since YYYY-MM-DD` (UTC, начало дня). **По умолчанию** обрабатываются только строки с `created_at` от **сегодняшнего дня UTC**, чтобы не задевать старые записи.

@@ -84,7 +84,7 @@ async def main_async(args: argparse.Namespace) -> None:
             "crawl_started",
             {"tier": "4", "source": "jobspy", "targets": 0, "targets_total_yaml": 0, "limit": args.limit},
         )
-        raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=args.limit)
+        raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=args.limit or 50)
         processed = len(raws)
         kept = 0
         rejected = 0
@@ -136,6 +136,7 @@ async def main_async(args: argparse.Namespace) -> None:
     tier_filter = args.tier
     all_targets = data.get("targets", [])
     targets = [t for t in all_targets if tier_filter in ("all", str(t.get("tier")))]
+    slice_targets = targets if args.limit == 0 else targets[: args.limit]
 
     run_id = insert_run(profile_id)
     log_event(
@@ -146,6 +147,7 @@ async def main_async(args: argparse.Namespace) -> None:
             "targets": len(targets),
             "targets_total_yaml": len(all_targets),
             "limit": args.limit,
+            "slice": len(slice_targets),
         },
     )
 
@@ -156,19 +158,53 @@ async def main_async(args: argparse.Namespace) -> None:
     kept = 0
     rejected = 0
 
-    for t in targets[: args.limit]:
+    for t in slice_targets:
+        company_name = t.get("company") or ""
+        log_event(
+            run_id,
+            "target_started",
+            {
+                "company": company_name,
+                "url": t.get("url"),
+                "ats": t.get("ats_type"),
+                "tier": str(t.get("tier")),
+            },
+        )
+        target_kept = 0
+        target_rejected = 0
+        target_rejects: dict[str, int] = {}
         try:
             raws = await collect_for_target(t, profile)
         except Exception as e:
-            log_event(run_id, "crawl_error", {"company": t.get("company"), "error": str(e)}, level="error")
-            record_failure(normalize_company(t.get("company") or ""), run_id)
+            log_event(run_id, "crawl_error", {"company": company_name, "error": str(e)}, level="error")
+            record_failure(normalize_company(company_name), run_id)
+            log_event(
+                run_id,
+                "target_done",
+                {
+                    "company": company_name,
+                    "raws": 0,
+                    "kept": 0,
+                    "rejected": 0,
+                    "by_reason": {},
+                    "errored": True,
+                },
+            )
             continue
+
         for rv in raws:
             processed += 1
             persist_raw(rv)
             ok_search, _ = passes_search_filters(rv.title, profile.search_keywords)
             if not ok_search:
                 rejected += 1
+                target_rejected += 1
+                target_rejects["search_role_excluded"] = target_rejects.get("search_role_excluded", 0) + 1
+                log_event(
+                    run_id,
+                    "vacancy_rejected",
+                    {"company": rv.company, "title": rv.title[:200], "reason": "search_role_excluded"},
+                )
                 continue
             loc_text = f"{rv.location}\n{rv.description[:2000]}"
             pf = post_collection_filter(
@@ -180,9 +216,23 @@ async def main_async(args: argparse.Namespace) -> None:
             )
             if not pf.passed:
                 rejected += 1
+                target_rejected += 1
+                rr = pf.reject_reason or "unknown"
+                target_rejects[rr] = target_rejects.get(rr, 0) + 1
+                log_event(
+                    run_id,
+                    "vacancy_rejected",
+                    {
+                        "company": rv.company,
+                        "title": rv.title[:200],
+                        "reason": rr,
+                        "warnings": pf.warnings,
+                    },
+                )
                 continue
             if not profile_id:
                 kept += 1
+                target_kept += 1
                 continue
             cn = normalize_company(rv.company)
             existing = _fetch_existing_company(cli, profile_id, cn)
@@ -197,6 +247,13 @@ async def main_async(args: argparse.Namespace) -> None:
             )
             if dm.is_duplicate:
                 rejected += 1
+                target_rejected += 1
+                target_rejects["duplicate"] = target_rejects.get("duplicate", 0) + 1
+                log_event(
+                    run_id,
+                    "vacancy_rejected",
+                    {"company": rv.company, "title": rv.title[:200], "reason": "duplicate"},
+                )
                 continue
             title_final = rv.title
             prev_id = None
@@ -219,8 +276,29 @@ async def main_async(args: argparse.Namespace) -> None:
                 row_insert["previous_vacancy_id"] = prev_id
             if insert_vacancy(cli, row_insert):
                 kept += 1
+                target_kept += 1
             else:
                 rejected += 1
+                target_rejected += 1
+                target_rejects["insert_failed"] = target_rejects.get("insert_failed", 0) + 1
+                log_event(
+                    run_id,
+                    "vacancy_rejected",
+                    {"company": rv.company, "title": rv.title[:200], "reason": "insert_failed"},
+                )
+
+        log_event(
+            run_id,
+            "target_done",
+            {
+                "company": company_name,
+                "raws": len(raws),
+                "kept": target_kept,
+                "rejected": target_rejected,
+                "by_reason": target_rejects,
+                "errored": False,
+            },
+        )
 
     metrics = {"processed": processed, "kept": kept, "rejected": rejected}
     if run_id:
@@ -232,7 +310,12 @@ async def main_async(args: argparse.Namespace) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser()
     parser.add_argument("--tier", default="1", help="1,2,3,4 или all")
-    parser.add_argument("--limit", type=int, default=10, help="Число целей Tier (первый прогон: 5)")
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=50,
+        help="Число целей tier (0 = без ограничения, обходит все)",
+    )
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
     args = parser.parse_args()
     asyncio.run(main_async(args))

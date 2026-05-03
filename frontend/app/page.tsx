@@ -108,6 +108,15 @@ export default async function HomePage() {
         .eq("type", "crawl_error")
     : { count: null };
 
+  const { data: targetsDoneRows } = runId
+    ? await supabase
+        .from("pipeline_events")
+        .select("ts, payload")
+        .eq("run_id", runId)
+        .eq("type", "target_done")
+        .order("ts", { ascending: true })
+    : { data: null };
+
   const { data: events } = await supabase
     .from("pipeline_events")
     .select("ts, level, type, payload")
@@ -116,6 +125,49 @@ export default async function HomePage() {
 
   const metrics = (run?.metrics as Record<string, unknown> | null) ?? null;
   const dur = durationMs(run?.started_at, run?.finished_at);
+
+  type TargetDone = {
+    company: string;
+    raws: number;
+    kept: number;
+    rejected: number;
+    by_reason: Record<string, number>;
+    errored: boolean;
+  };
+
+  function topReason(by: Record<string, number> | null | undefined): string {
+    if (!by) return "—";
+    const entries = Object.entries(by);
+    if (entries.length === 0) return "—";
+    entries.sort((a, b) => b[1] - a[1]);
+    const [code, n] = entries[0];
+    return `${code} (${n})`;
+  }
+
+  const targetsDone: TargetDone[] = (targetsDoneRows ?? [])
+    .map((r) => {
+      const p = (r.payload ?? {}) as Record<string, unknown>;
+      return {
+        company: typeof p.company === "string" ? p.company : "—",
+        raws: Number(p.raws ?? 0),
+        kept: Number(p.kept ?? 0),
+        rejected: Number(p.rejected ?? 0),
+        by_reason: (p.by_reason as Record<string, number> | undefined) ?? {},
+        errored: Boolean(p.errored),
+      } as TargetDone;
+    })
+    .sort((a, b) => b.kept - a.kept || b.rejected - a.rejected);
+
+  const totalTargets = targetsDone.length;
+  const targetsWithKept = targetsDone.filter((t) => t.kept > 0).length;
+  const targetsZero = targetsDone.filter((t) => t.raws === 0 && !t.errored).length;
+  const reasonAgg: Record<string, number> = {};
+  for (const t of targetsDone) {
+    for (const [k, v] of Object.entries(t.by_reason)) {
+      reasonAgg[k] = (reasonAgg[k] ?? 0) + Number(v);
+    }
+  }
+  const topGlobalReason = topReason(reasonAgg);
 
   return (
     <div className="space-y-8">
@@ -201,6 +253,53 @@ export default async function HomePage() {
                 )}
               </p>
             </div>
+
+            {totalTargets > 0 && (
+              <div className="rounded border border-neutral-200 bg-white p-3 text-sm space-y-2">
+                <p className="font-semibold text-neutral-900">По площадкам ({totalTargets})</p>
+                <p className="text-xs text-neutral-600">
+                  С хотя бы одной добавленной вакансией: <strong>{targetsWithKept}</strong>;{" "}
+                  площадок с 0 ссылок: <strong>{targetsZero}</strong>; топ причина отказа:{" "}
+                  <strong>{topGlobalReason}</strong>.
+                </p>
+                <div className="overflow-x-auto rounded border border-neutral-200">
+                  <table className="w-full text-xs">
+                    <thead className="bg-neutral-100 text-neutral-900">
+                      <tr>
+                        <th className="text-left px-2 py-1">Компания</th>
+                        <th className="text-right px-2 py-1">Найдено</th>
+                        <th className="text-right px-2 py-1">Kept</th>
+                        <th className="text-right px-2 py-1">Rejected</th>
+                        <th className="text-left px-2 py-1">Топ причина</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {targetsDone.map((t, i) => (
+                        <tr
+                          key={`${t.company}-${i}`}
+                          className={
+                            "border-t border-neutral-200 " +
+                            (t.errored
+                              ? "bg-red-50 text-red-900"
+                              : t.raws === 0
+                                ? "text-neutral-500"
+                                : "text-neutral-900")
+                          }
+                        >
+                          <td className="px-2 py-1 font-medium">{t.company}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{t.raws}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{t.kept}</td>
+                          <td className="px-2 py-1 text-right tabular-nums">{t.rejected}</td>
+                          <td className="px-2 py-1 font-mono text-[11px]">
+                            {t.errored ? "error" : topReason(t.by_reason)}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
 
             {metrics && Object.keys(metrics).length > 0 && (
               <div>

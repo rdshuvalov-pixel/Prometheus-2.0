@@ -84,7 +84,8 @@ async def main_async(args: argparse.Namespace) -> None:
             "crawl_started",
             {"tier": "4", "source": "jobspy", "targets": 0, "targets_total_yaml": 0, "limit": args.limit},
         )
-        raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=args.limit or 50)
+        rwanted = args.limit if args.limit and args.limit > 0 else 50
+        raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=rwanted)
         processed = len(raws)
         kept = 0
         rejected = 0

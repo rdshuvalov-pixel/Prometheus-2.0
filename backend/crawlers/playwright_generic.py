@@ -125,8 +125,11 @@ async def fetch_with_playwright(url: str, company_name: str, tier: str) -> list[
     async with async_playwright() as p:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
+        page.set_default_timeout(25_000)
         try:
-            await page.goto(url, wait_until="networkidle", timeout=60000)
+            # SPA (TeamTailor и др.) часто никогда не доходит до «network idle» — висим минутами.
+            await page.goto(url, wait_until="domcontentloaded", timeout=45_000)
+            await asyncio.sleep(0.8)
             links = await page.eval_on_selector_all(
                 "a[href*='job'], a[href*='career'], a[href*='vacancy']",
                 "els => els.map(e => ({href: e.href, text: e.innerText.trim()}))",

@@ -123,3 +123,52 @@ docker compose exec api python -m backend.pipeline.run_enrich --batch 50
 docker compose exec api python -m backend.pipeline.run_score --batch 50
 docker compose exec api python -m backend.pipeline.run_enrich --since 2026-01-01 --batch 200
 ```
+
+## 8. Полный прогон всех tier и ежедневный таймер (systemd)
+
+Разовый полный прогон (из каталога `infra/`, контейнер `api` должен быть запущен):
+
+```bash
+docker compose exec -T api python -m backend.pipeline.run_crawl --tier 1 --limit 0
+docker compose exec -T api python -m backend.pipeline.run_crawl --tier 2 --limit 0
+docker compose exec -T api python -m backend.pipeline.run_crawl --tier 3 --limit 0
+docker compose exec -T api python -m backend.pipeline.run_crawl --tier 4 --limit 50
+docker compose exec -T api python -m backend.pipeline.run_enrich --batch 100
+docker compose exec -T api python -m backend.pipeline.run_score --batch 100
+docker compose exec -T api python -m backend.pipeline.run_write --batch 20
+```
+
+То же через скрипт в репозитории (удобно для cron/systemd):
+
+```bash
+cd /opt/prometheus-20
+chmod +x infra/run_pipeline.sh
+bash infra/run_pipeline.sh
+```
+
+Для tier 4 можно переопределить лимит: `LIMIT_TIER4=100 bash infra/run_pipeline.sh`.
+
+### Установка systemd-таймера на VPS
+
+Юниты: [`infra/prometheus-pipeline.timer`](../infra/prometheus-pipeline.timer), [`infra/prometheus-pipeline.service`](../infra/prometheus-pipeline.service). Расписание в **UTC**: `06,10,14,18,22` с небольшим случайным сдвигом до 2 минут.
+
+```bash
+cd /opt/prometheus-20 && git pull origin main
+chmod +x infra/run_pipeline.sh
+
+sudo cp infra/prometheus-pipeline.service infra/prometheus-pipeline.timer /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now prometheus-pipeline.timer
+
+sudo systemctl list-timers --all | rg prometheus
+sudo systemctl status prometheus-pipeline.timer --no-pager
+```
+
+Разовый запуск без ожидания слота:
+
+```bash
+sudo systemctl start prometheus-pipeline.service
+sudo journalctl -u prometheus-pipeline.service -S today --no-pager
+```
+
+Смена частоты: отредактируй `OnCalendar` в `prometheus-pipeline.timer`, затем `sudo systemctl daemon-reload` и `sudo systemctl restart prometheus-pipeline.timer`.

@@ -255,14 +255,19 @@ export default async function HomePage() {
             </div>
 
             {totalTargets > 0 && (
-              <div className="rounded border border-neutral-200 bg-white p-3 text-sm space-y-2">
-                <p className="font-semibold text-neutral-900">По площадкам ({totalTargets})</p>
-                <p className="text-xs text-neutral-600">
-                  С хотя бы одной добавленной вакансией: <strong>{targetsWithKept}</strong>;{" "}
-                  площадок с 0 ссылок: <strong>{targetsZero}</strong>; топ причина отказа:{" "}
-                  <strong>{topGlobalReason}</strong>.
-                </p>
-                <div className="overflow-x-auto rounded border border-neutral-200">
+              <details className="group rounded border border-neutral-200 bg-white p-3 text-sm">
+                <summary className="cursor-pointer list-none flex flex-wrap items-baseline justify-between gap-2 [&::-webkit-details-marker]:hidden">
+                  <span className="font-semibold text-neutral-900">
+                    <span className="mr-1 text-neutral-500 group-open:hidden">▸</span>
+                    <span className="mr-1 text-neutral-500 hidden group-open:inline">▾</span>
+                    По площадкам ({totalTargets})
+                  </span>
+                  <span className="text-xs text-neutral-600">
+                    kept у <strong>{targetsWithKept}</strong>; пусто у <strong>{targetsZero}</strong>; топ причина:{" "}
+                    <strong>{topGlobalReason}</strong>
+                  </span>
+                </summary>
+                <div className="mt-3 overflow-x-auto rounded border border-neutral-200">
                   <table className="w-full text-xs">
                     <thead className="bg-neutral-100 text-neutral-900">
                       <tr>
@@ -290,15 +295,13 @@ export default async function HomePage() {
                           <td className="px-2 py-1 text-right tabular-nums">{t.raws}</td>
                           <td className="px-2 py-1 text-right tabular-nums">{t.kept}</td>
                           <td className="px-2 py-1 text-right tabular-nums">{t.rejected}</td>
-                          <td className="px-2 py-1 font-mono text-[11px]">
-                            {t.errored ? "error" : topReason(t.by_reason)}
-                          </td>
+                          <td className="px-2 py-1 font-mono text-[11px]">{t.errored ? "error" : topReason(t.by_reason)}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
-              </div>
+              </details>
             )}
 
             {metrics && Object.keys(metrics).length > 0 && (

@@ -12,7 +12,7 @@ export default function LoginPage() {
       email,
       options: { emailRedirectTo: `${window.location.origin}/auth/callback` },
     });
-    setMsg(error ? error.message : "Проверьте почту");
+    setMsg(error ? error.message : "Check your email");
   }
   return (
     <div className="max-w-md space-y-4">
@@ -25,7 +25,7 @@ export default function LoginPage() {
         onChange={(e) => setEmail(e.target.value)}
       />
       <button type="button" onClick={send} className="px-4 py-2 bg-blue-600 rounded">
-        Отправить ссылку
+        Send link
       </button>
       {msg && <p className="text-sm">{msg}</p>}
     </div>

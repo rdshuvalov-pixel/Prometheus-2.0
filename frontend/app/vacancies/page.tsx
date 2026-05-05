@@ -20,7 +20,7 @@ type VacancyRow = {
 
 function formatDate(iso: string) {
   try {
-    return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(new Date(iso));
+    return new Intl.DateTimeFormat("en-US", { dateStyle: "medium" }).format(new Date(iso));
   } catch {
     return iso;
   }
@@ -50,12 +50,44 @@ export default async function VacanciesPage({
     q = q.eq("profile_id", activeProfileId);
   }
   const status = typeof searchParams.status === "string" ? searchParams.status : undefined;
-  if (status) q = q.eq("status", status);
+  if (status) {
+    q = q.eq("status", status);
+  } else {
+    // Default: hide "New" to reduce noise.
+    q = q.neq("status", "New");
+  }
   const { data: rows } = await q;
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold text-neutral-900">Вакансии</h1>
+      <h1 className="text-2xl font-semibold text-neutral-900">Vacancies</h1>
+      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <span className="text-neutral-700 font-medium">Filter:</span>
+        {[
+          { key: "", label: "All" },
+          { key: "Scored", label: "Scored" },
+          { key: "Rejected", label: "Rejected" },
+          { key: "Applied", label: "Applied" },
+          { key: "New", label: "New" },
+        ].map((it) => {
+          const active = (status || "") === it.key;
+          const href = it.key ? `/vacancies?status=${encodeURIComponent(it.key)}` : "/vacancies";
+          return (
+            <Link
+              key={it.label}
+              href={href}
+              className={[
+                "px-3 py-1.5 rounded-lg border text-xs font-semibold",
+                active
+                  ? "bg-candy-500 text-white border-candy-500"
+                  : "bg-white/80 text-neutral-700 border-neutral-200 hover:border-candy-300",
+              ].join(" ")}
+            >
+              {it.label}
+            </Link>
+          );
+        })}
+      </div>
       <ul className="grid gap-4 sm:grid-cols-1 md:grid-cols-2">
         {(rows as VacancyRow[] | null)?.map((v) => {
           const formal = formalBody(v.cover_letters);
@@ -72,7 +104,7 @@ export default async function VacanciesPage({
                   {v.company} — {v.role_title}
                 </Link>
                 <p className="text-sm text-neutral-700 mt-1">
-                  Поиск: {formatDate(v.created_at)} · {v.status} · score {v.score ?? "—"}
+                  Crawled: {formatDate(v.created_at)} · {v.status} · score {v.score ?? "—"}
                   {v.match_status ? ` · ${v.match_status}` : ""}
                 </p>
                 <a

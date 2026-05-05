@@ -2,11 +2,12 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import CandyBackdrop from "./CandyBackdrop";
+import HiddenRunButton from "./HiddenRunButton";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Прометей 2.0",
-  description: "Pipeline и вакансии",
+  title: "Prometei 2.0",
+  description: "Pipeline & vacancies",
   icons: { icon: "/icon.svg", shortcut: "/icon.svg" },
 };
 
@@ -17,7 +18,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   } = await supabase.auth.getUser();
 
   return (
-    <html lang="ru">
+    <html lang="en">
       <body className="relative min-h-screen bg-neutral-50">
         {/* Слой фона: градиент и карамельки над ним, контент выше (иначе -z скрывает SVG под paint body). */}
         <div
@@ -27,16 +28,17 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <div className="fixed inset-0 z-[1] pointer-events-none overflow-hidden">
           <CandyBackdrop />
         </div>
+        <HiddenRunButton />
         <div className="relative z-10">
           <nav className="border-b border-neutral-200 bg-white/90 backdrop-blur-sm px-4 py-3 flex gap-6 text-sm items-center flex-wrap font-medium text-neutral-900 shadow-sm">
             <Link href="/" className="hover:text-candy-700">
-              Дашборд
+              Dashboard
             </Link>
             <Link href="/vacancies" className="hover:text-candy-700">
-              Вакансии
+              Vacancies
             </Link>
             <Link href="/profile" className="hover:text-candy-700">
-              Профиль
+              Profile
             </Link>
             <Link href="/cost" className="hover:text-candy-700">
               LLM cost
@@ -52,13 +54,13 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                       type="submit"
                       className="text-candy-800 hover:text-candy-600 hover:underline bg-transparent border-0 cursor-pointer p-0 text-sm font-medium"
                     >
-                      Выйти
+                      Sign out
                     </button>
                   </form>
                 </>
               ) : (
                 <Link href="/login" className="hover:text-candy-700 font-medium">
-                  Вход
+                  Sign in
                 </Link>
               )}
             </div>

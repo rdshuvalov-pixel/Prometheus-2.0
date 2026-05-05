@@ -1,10 +1,11 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
+import DescriptionPanel from "./DescriptionPanel";
 
 function formatTs(iso: string | null | undefined): string {
   if (!iso) return "—";
   try {
-    return new Intl.DateTimeFormat("ru-RU", {
+    return new Intl.DateTimeFormat("en-US", {
       dateStyle: "medium",
       timeStyle: "short",
     }).format(new Date(iso));
@@ -20,10 +21,10 @@ function durationMs(started: string | null | undefined, finished: string | null 
     const b = new Date(finished).getTime();
     const ms = b - a;
     if (Number.isNaN(ms) || ms < 0) return null;
-    if (ms < 60000) return `${Math.round(ms / 1000)} с`;
+    if (ms < 60000) return `${Math.round(ms / 1000)}s`;
     const m = Math.floor(ms / 60000);
     const s = Math.round((ms % 60000) / 1000);
-    return `${m} мин ${s} с`;
+    return `${m}m ${s}s`;
   } catch {
     return null;
   }
@@ -171,12 +172,14 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-8">
-      <h1 className="text-2xl font-semibold text-neutral-900">Дашборд</h1>
+      <DescriptionPanel />
+
+      <h1 className="text-2xl font-semibold text-neutral-900">Dashboard</h1>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium text-neutral-900">Последний запуск</h2>
+        <h2 className="text-lg font-medium text-neutral-900">Last run</h2>
         {!run && (
-          <p className="text-neutral-700">Нет данных pipeline_runs (проверьте RLS и логин).</p>
+          <p className="text-neutral-700">No data in pipeline_runs (check RLS and sign-in).</p>
         )}
         {run && (
           <div className="rounded-lg border border-neutral-200 bg-white/90 shadow-sm p-4 space-y-3">
@@ -184,9 +187,9 @@ export default async function HomePage() {
               <div>
                 <p className="text-neutral-900 font-medium">
                   {formatTs(run.started_at)} —{" "}
-                  <span className="text-neutral-700">статус: {String(run.status)}</span>
+                  <span className="text-neutral-700">status: {String(run.status)}</span>
                 </p>
-                {dur && <p className="text-sm text-neutral-600">Длительность: {dur}</p>}
+                {dur && <p className="text-sm text-neutral-600">Duration: {dur}</p>}
               </div>
               <span
                 className={
@@ -199,41 +202,41 @@ export default async function HomePage() {
               </span>
             </div>
             {run.finished_at && (
-              <p className="text-sm text-neutral-600">Завершён: {formatTs(run.finished_at)}</p>
+              <p className="text-sm text-neutral-600">Finished: {formatTs(run.finished_at)}</p>
             )}
 
             <div className="rounded border border-neutral-200 bg-gradient-to-br from-white to-[#fff7fa] p-3 text-sm space-y-1">
-              <p className="font-semibold text-neutral-900 mb-2">Сводка прогона</p>
+              <p className="font-semibold text-neutral-900 mb-2">Run summary</p>
               <p className="flex justify-between gap-4">
-                <span className="text-neutral-700">Площадок в tier (из YAML)</span>
+                <span className="text-neutral-700">Targets in tier (from YAML)</span>
                 <span className="font-mono tabular-nums font-medium text-neutral-900">{targets ?? "—"}</span>
               </p>
               <p className="flex justify-between gap-4">
-                <span className="text-neutral-700">Найдено вакансий</span>
+                <span className="text-neutral-700">Found vacancies</span>
                 <span className="font-mono tabular-nums font-medium text-neutral-900">
                   {metricStr(metrics, "processed")}
                 </span>
               </p>
               <p className="flex justify-between gap-4">
-                <span className="text-neutral-700">Прошло фильтр</span>
+                <span className="text-neutral-700">Passed filter</span>
                 <span className="font-mono tabular-nums font-medium text-neutral-900">
                   {metricStr(metrics, "kept")}
                 </span>
               </p>
               <p className="flex justify-between gap-4">
-                <span className="text-neutral-700">Отклонено</span>
+                <span className="text-neutral-700">Rejected</span>
                 <span className="font-mono tabular-nums font-medium text-neutral-900">
                   {metricStr(metrics, "rejected")}
                 </span>
               </p>
               <p className="flex justify-between gap-4">
-                <span className="text-neutral-700">Ошибок краулера</span>
+                <span className="text-neutral-700">Crawler errors</span>
                 <span className="font-mono tabular-nums font-medium text-neutral-900">
                   {crawlErrorCount ?? "—"}
                 </span>
               </p>
               <p className="text-xs text-neutral-600 leading-relaxed border-t border-neutral-200 pt-2 mt-2">
-                <strong className="text-neutral-800">Как считается число площадок:</strong> только цели выбранного tier в{" "}
+                <strong className="text-neutral-800">How targets are counted:</strong> only goals for the selected tier in{" "}
                 <code className="rounded bg-neutral-100 px-1 font-mono text-neutral-900">targets.yaml</code>, не сумма по
                 tier&nbsp;2–4 и не «все сайты подряд».
                 {targets != null && targetsTotalYaml != null && (

@@ -37,6 +37,7 @@ select id, company, role_title, score, status from vacancies order by created_at
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | anon public |
 | `SUPABASE_SERVICE_ROLE_KEY` | service_role (тот же секрет, что `SUPABASE_SERVICE_KEY` в backend `.env`) |
 | `PROMETHEUS_API_URL` | после деплоя VPS: `https://your-vps:8080` или временно пропустите Preview весов |
+| `PIPELINE_API_SECRET` | server-only: секрет для `/api/pipeline/run` (должен совпадать с `PIPELINE_API_SECRET` на VPS), если задан — включается Bearer-проверка |
 
 5. Deploy → откройте прод-URL, `/login` → magic link.
 
@@ -84,5 +85,7 @@ curl -sS -X POST "http://VPS:8080/pipeline/full" \
 ```
 
 `PIPELINE_API_SECRET` в `.env` на VPS должен совпадать с `SECRET` в заголовке (если переменная задана; иначе авторизация отключена).
+
+Для запуска пайплайна из UI (скрытая кнопка на главной) в Vercel нужно задать `PIPELINE_API_SECRET` (server-only). Если переменная не задана — endpoint `/api/pipeline/run` будет требовать только активную supabase-сессию, но без дополнительного Bearer-secrets слоя.
 
 В UI: главная / дашборд с `pipeline_runs`, `/vacancies` — строки со score и ссылки на cover letters.

@@ -5,9 +5,9 @@ from __future__ import annotations
 import argparse
 import asyncio
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
-from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase
+from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
 from backend.llm.functions.explain import explain_fit
 from backend.llm.functions.extract_scoring_features import (
     extract_scoring_features,
@@ -33,7 +33,8 @@ def _since_start_iso(arg: str | None) -> str:
             y, m, d = int(parts[0]), int(parts[1]), int(parts[2])
             return datetime(y, m, d, tzinfo=timezone.utc).isoformat()
     today = datetime.now(timezone.utc).date()
-    return datetime(today.year, today.month, today.day, tzinfo=timezone.utc).isoformat()
+    start_day_utc = datetime(today.year, today.month, today.day, tzinfo=timezone.utc) - timedelta(days=7)
+    return start_day_utc.isoformat()
 
 
 async def score_one(
@@ -96,68 +97,87 @@ async def main_async(args: argparse.Namespace) -> None:
     if cli is None:
         return
     since_iso = _since_start_iso(args.since)
-    q = (
-        cli.table("vacancies")
-        .select("id, role_title, description, status, evidence, warnings, created_at")
-        .eq("status", "New")
-        .not_.is_("enrichment_at", "null")
-        .is_("score", "null")
-        .gte("created_at", since_iso)
-        .limit(args.batch)
-    )
-    if profile_id:
-        q = q.eq("profile_id", profile_id)
-    res = q.execute()
-    rows = getattr(res, "data", None) or []
+    scored = 0
+    while True:
+        q = (
+            cli.table("vacancies")
+            .select("id, role_title, description, status, evidence, warnings, created_at")
+            .eq("status", "New")
+            .not_.is_("enrichment_at", "null")
+            .is_("score", "null")
+            .gte("created_at", since_iso)
+            .order("created_at", desc=False)
+            .limit(args.batch)
+        )
+        if profile_id:
+            q = q.eq("profile_id", profile_id)
+        res = q.execute()
+        rows = getattr(res, "data", None) or []
+        if not rows:
+            if args.run_id:
+                merge_run_metrics(args.run_id, {"scored": scored})
+            return
 
-    to_score: list[dict] = []
-    for v in rows:
-        if len((v.get("description") or "").strip()) < 100 and not v.get("evidence"):
-            await score_one(v, overrides, args.run_id, None)
-        else:
-            to_score.append(v)
-    rows = to_score
-
-    if args.batch_mode and len(rows) > 1:
-        chunk_size = 5
-        for i in range(0, len(rows), chunk_size):
-            chunk = rows[i : i + chunk_size]
-            if not chunk:
-                continue
-            texts = [f"{v.get('role_title', '')}\n{v.get('description', '')}" for v in chunk]
-            vids = [str(v.get("id")) for v in chunk]
-            try:
-                extracted = await extract_scoring_features_batch(texts, run_id=args.run_id, vacancy_ids=vids)
-            except ValueError:
-                raise
-            except Exception:
-                for v in chunk:
-                    await score_one(v, overrides, args.run_id, None)
-                    await asyncio.sleep(0.3)
-                continue
-            for v, ext in zip(chunk, extracted, strict=True):
-                await score_one(v, overrides, args.run_id, ext)
-                await asyncio.sleep(0.2)
-    else:
+        to_score: list[dict] = []
         for v in rows:
-            await score_one(v, overrides, args.run_id, None)
-            await asyncio.sleep(0.3)
+            if len((v.get("description") or "").strip()) < 100 and not v.get("evidence"):
+                await score_one(v, overrides, args.run_id, None)
+                scored += 1
+            else:
+                to_score.append(v)
+        rows = to_score
+
+        if args.batch_mode and len(rows) > 1:
+            chunk_size = args.chunk_size
+            for i in range(0, len(rows), chunk_size):
+                chunk = rows[i : i + chunk_size]
+                if not chunk:
+                    continue
+                texts = [f"{v.get('role_title', '')}\n{v.get('description', '')}" for v in chunk]
+                vids = [str(v.get("id")) for v in chunk]
+                try:
+                    extracted = await extract_scoring_features_batch(texts, run_id=args.run_id, vacancy_ids=vids)
+                except ValueError:
+                    raise
+                except Exception:
+                    for v in chunk:
+                        await score_one(v, overrides, args.run_id, None)
+                        scored += 1
+                        await asyncio.sleep(args.delay)
+                    continue
+                for v, ext in zip(chunk, extracted, strict=True):
+                    await score_one(v, overrides, args.run_id, ext)
+                    scored += 1
+                    await asyncio.sleep(args.delay)
+        else:
+            for v in rows:
+                await score_one(v, overrides, args.run_id, None)
+                scored += 1
+                await asyncio.sleep(args.delay)
+
+        if not args.drain:
+            if args.run_id:
+                merge_run_metrics(args.run_id, {"scored": scored})
+            return
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
     p.add_argument("--batch", type=int, default=15)
     p.add_argument("--run_id", default=None)
+    p.add_argument("--drain", action="store_true", help="Process batches until queue is empty")
     p.add_argument(
         "--batch-mode",
         action="store_true",
         help="Один LLM-вызов на 5 вакансий (extract batch)",
     )
+    p.add_argument("--chunk-size", dest="chunk_size", type=int, default=5)
+    p.add_argument("--delay", type=float, default=0.25, help="Per-item delay in seconds")
     p.add_argument(
         "--since",
         default=None,
         metavar="YYYY-MM-DD",
-        help="Обрабатывать только vacancies с created_at >= этой даты UTC (по умолчанию — сегодня UTC)",
+        help="Обрабатывать только vacancies с created_at >= этой даты UTC (по умолчанию — последние 7 дней, UTC)",
     )
     p.add_argument("--profile-id", dest="profile_id", default=None)
     args = p.parse_args()

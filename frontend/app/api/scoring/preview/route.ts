@@ -5,7 +5,7 @@ export async function POST(req: Request) {
   const body = await req.json();
   if (!api) {
     return NextResponse.json(
-      { error: "Задайте PROMETHEUS_API_URL (backend с /scoring/preview)", fixtures: [] },
+      { error: "Set PROMETHEUS_API_URL (backend with /scoring/preview)", fixtures: [] },
       { status: 503 },
     );
   }

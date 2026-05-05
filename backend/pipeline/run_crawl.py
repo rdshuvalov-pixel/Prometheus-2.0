@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import time
 from datetime import timezone
 from pathlib import Path
 
@@ -159,8 +160,11 @@ async def main_async(args: argparse.Namespace) -> None:
     kept = 0
     rejected = 0
 
-    for t in slice_targets:
+    sem = asyncio.Semaphore(max(1, int(args.concurrency)))
+
+    async def process_target(t: dict) -> tuple[int, int, int]:
         company_name = t.get("company") or ""
+        t0 = time.perf_counter()
         log_event(
             run_id,
             "target_started",
@@ -171,34 +175,27 @@ async def main_async(args: argparse.Namespace) -> None:
                 "tier": str(t.get("tier")),
             },
         )
+
+        target_processed = 0
         target_kept = 0
         target_rejected = 0
         target_rejects: dict[str, int] = {}
+        errored = False
+
         try:
-            raws = await collect_for_target(t, profile)
+            async with sem:
+                raws = await collect_for_target(t, profile)
         except Exception as e:
+            errored = True
+            raws = []
             log_event(run_id, "crawl_error", {"company": company_name, "error": str(e)}, level="error")
             record_failure(normalize_company(company_name), run_id)
-            log_event(
-                run_id,
-                "target_done",
-                {
-                    "company": company_name,
-                    "raws": 0,
-                    "kept": 0,
-                    "rejected": 0,
-                    "by_reason": {},
-                    "errored": True,
-                },
-            )
-            continue
 
         for rv in raws:
-            processed += 1
+            target_processed += 1
             persist_raw(rv)
             ok_search, _ = passes_search_filters(rv.title, profile.search_keywords)
             if not ok_search:
-                rejected += 1
                 target_rejected += 1
                 target_rejects["search_role_excluded"] = target_rejects.get("search_role_excluded", 0) + 1
                 log_event(
@@ -216,7 +213,6 @@ async def main_async(args: argparse.Namespace) -> None:
                 posted_at=rv.posted_at,
             )
             if not pf.passed:
-                rejected += 1
                 target_rejected += 1
                 rr = pf.reject_reason or "unknown"
                 target_rejects[rr] = target_rejects.get(rr, 0) + 1
@@ -232,7 +228,6 @@ async def main_async(args: argparse.Namespace) -> None:
                 )
                 continue
             if not profile_id:
-                kept += 1
                 target_kept += 1
                 continue
             cn = normalize_company(rv.company)
@@ -247,7 +242,6 @@ async def main_async(args: argparse.Namespace) -> None:
                 posted_at=posted,
             )
             if dm.is_duplicate:
-                rejected += 1
                 target_rejected += 1
                 target_rejects["duplicate"] = target_rejects.get("duplicate", 0) + 1
                 log_event(
@@ -276,10 +270,8 @@ async def main_async(args: argparse.Namespace) -> None:
             if prev_id:
                 row_insert["previous_vacancy_id"] = prev_id
             if insert_vacancy(cli, row_insert):
-                kept += 1
                 target_kept += 1
             else:
-                rejected += 1
                 target_rejected += 1
                 target_rejects["insert_failed"] = target_rejects.get("insert_failed", 0) + 1
                 log_event(
@@ -288,6 +280,7 @@ async def main_async(args: argparse.Namespace) -> None:
                     {"company": rv.company, "title": rv.title[:200], "reason": "insert_failed"},
                 )
 
+        elapsed_ms = int((time.perf_counter() - t0) * 1000)
         log_event(
             run_id,
             "target_done",
@@ -297,9 +290,17 @@ async def main_async(args: argparse.Namespace) -> None:
                 "kept": target_kept,
                 "rejected": target_rejected,
                 "by_reason": target_rejects,
-                "errored": False,
+                "errored": errored,
+                "elapsed_ms": elapsed_ms,
             },
         )
+        return (target_processed, target_kept, target_rejected)
+
+    results = await asyncio.gather(*(process_target(t) for t in slice_targets))
+    for tp, tk, tr in results:
+        processed += tp
+        kept += tk
+        rejected += tr
 
     metrics = {"processed": processed, "kept": kept, "rejected": rejected}
     if run_id:
@@ -317,6 +318,7 @@ def main() -> None:
         default=50,
         help="Число целей tier (0 = без ограничения, обходит все)",
     )
+    parser.add_argument("--concurrency", type=int, default=3, help="Parallel targets to crawl")
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
     args = parser.parse_args()
     asyncio.run(main_async(args))

@@ -49,7 +49,7 @@ function fmtUsd(n: number): string {
 }
 
 function fmtInt(n: number): string {
-  return new Intl.NumberFormat("ru-RU").format(n);
+  return new Intl.NumberFormat("en-US").format(n);
 }
 
 function Table({ label, data }: { label: string; data: Map<string, Agg> }) {
@@ -72,7 +72,7 @@ function Table({ label, data }: { label: string; data: Map<string, Agg> }) {
             {rows.length === 0 && (
               <tr>
                 <td colSpan={5} className="text-center text-neutral-600 py-3">
-                  Нет данных
+                  No data
                 </td>
               </tr>
             )}
@@ -98,7 +98,7 @@ export default async function CostPage() {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) {
-    return <p className="text-neutral-900">Войдите в систему, чтобы увидеть LLM cost.</p>;
+    return <p className="text-neutral-900">Sign in to view LLM cost.</p>;
   }
   const { data, error } = await supabase
     .from("llm_calls")
@@ -108,7 +108,7 @@ export default async function CostPage() {
   if (error) {
     return (
       <p className="text-neutral-900">
-        Не удалось загрузить llm_calls ({error.message}). Проверьте RLS таблицы.
+        Failed to load llm_calls ({error.message}). Check table RLS.
       </p>
     );
   }

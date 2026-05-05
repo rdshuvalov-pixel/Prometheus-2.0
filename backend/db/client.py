@@ -136,6 +136,23 @@ def finish_run(
     ).eq("id", run_id).execute()
 
 
+def merge_run_metrics(run_id: str, patch: dict[str, Any]) -> None:
+    """Merge metrics into pipeline_runs.metrics (best-effort)."""
+    cli = get_supabase()
+    if cli is None:
+        return
+    try:
+        cur = cli.table("pipeline_runs").select("metrics").eq("id", run_id).limit(1).execute()
+        rows = getattr(cur, "data", None) or []
+        base = rows[0].get("metrics") if rows else {}
+        if not isinstance(base, dict):
+            base = {}
+    except Exception:
+        base = {}
+    merged = {**base, **patch}
+    cli.table("pipeline_runs").update({"metrics": merged}).eq("id", run_id).execute()
+
+
 def log_event(
     run_id: str | None,
     type_: str,

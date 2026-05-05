@@ -9,9 +9,10 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import BackgroundTasks, FastAPI, Header, HTTPException
 from pydantic import BaseModel
 
+from backend.db.client import finish_run, insert_run
 from backend.scoring.preview import compare_overrides
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -66,19 +67,27 @@ async def pipeline_run(
 
 @app.post("/pipeline/full")
 async def pipeline_full(
+    bg: BackgroundTasks,
     authorization: str | None = Header(default=None),
     x_profile_id: str | None = Header(default=None, alias="X-Profile-Id"),
 ) -> dict[str, str]:
     _auth(authorization)
+    run_id = insert_run(x_profile_id) if x_profile_id else insert_run(None)
     steps = [
-        [sys.executable, "-m", "backend.pipeline.run_crawl", "--tier", "all"],
-        [sys.executable, "-m", "backend.pipeline.run_enrich"],
-        [sys.executable, "-m", "backend.pipeline.run_score"],
-        [sys.executable, "-m", "backend.pipeline.run_write"],
+        [sys.executable, "-m", "backend.pipeline.run_crawl", "--tier", "all", "--concurrency", "4", "--profile-id", x_profile_id or ""],
+        [sys.executable, "-m", "backend.pipeline.run_enrich", "--drain", "--batch", "40", "--rps", "0.15", "--run_id", run_id or ""],
+        [sys.executable, "-m", "backend.pipeline.run_score", "--drain", "--batch", "50", "--batch-mode", "--chunk-size", "5", "--delay", "0.2", "--run_id", run_id or ""],
+        [sys.executable, "-m", "backend.pipeline.run_write", "--drain", "--batch", "15", "--delay", "0.15", "--run_id", run_id or ""],
     ]
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
     if x_profile_id:
         env["ACTIVE_PROFILE_ID"] = x_profile_id
-    for cmd in steps:
-        subprocess.run(cmd, cwd=str(ROOT), env=env, check=False)
-    return {"status": "done"}
+
+    def _runner() -> None:
+        for cmd in steps:
+            subprocess.run(cmd, cwd=str(ROOT), env=env, check=False)
+        if run_id:
+            finish_run(run_id, "ok", metrics={})
+
+    bg.add_task(_runner)
+    return {"status": "queued", "run_id": run_id or ""}

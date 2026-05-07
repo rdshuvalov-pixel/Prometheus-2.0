@@ -15,7 +15,7 @@ export async function POST(_: Request, { params }: { params: { name: string } })
   if (!secret) return NextResponse.json({ error: "PIPELINE_API_SECRET missing" }, { status: 500 });
   const profileId = await getActiveProfileId();
 
-  const url = `${base.replace(/\\/+$/, "")}/pipeline/step/${encodeURIComponent(params.name)}`;
+  const url = `${base.replace(/\/+$/, "")}/pipeline/step/${encodeURIComponent(params.name)}`;
   try {
     const resp = await fetch(url, {
       method: "POST",

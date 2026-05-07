@@ -26,3 +26,32 @@ export function MarkApplied({ id, status }: { id: string; status: string }) {
     </div>
   );
 }
+
+export function GenerateFormal({ id }: { id: string }) {
+  const [msg, setMsg] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  async function go() {
+    setBusy(true);
+    setMsg(null);
+    try {
+      const r = await fetch(`/api/vacancies/${id}/generate/formal`, { method: "POST" });
+      setMsg(r.ok ? "OK" : await r.text());
+      if (r.ok) window.location.reload();
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="flex gap-2 items-center">
+      <button
+        type="button"
+        onClick={go}
+        className="px-3 py-1 bg-neutral-900 text-white rounded text-sm"
+        disabled={busy}
+      >
+        Generate cover (formal)
+      </button>
+      {msg && <span className="text-xs">{msg}</span>}
+    </div>
+  );
+}

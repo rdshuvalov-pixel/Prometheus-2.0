@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { createServerSupabase } from "@/lib/supabase/server";
 import DescriptionPanel from "./DescriptionPanel";
+import { StepButtons } from "./StepButtons";
 
 function formatTs(iso: string | null | undefined): string {
   if (!iso) return "—";
@@ -259,6 +260,8 @@ export default async function HomePage() {
                 )}
               </p>
             </div>
+
+            <StepButtons />
 
             {totalTargets > 0 && (
               <details className="group rounded border border-neutral-200 bg-white p-3 text-sm">

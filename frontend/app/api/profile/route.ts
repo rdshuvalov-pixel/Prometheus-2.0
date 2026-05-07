@@ -3,8 +3,13 @@ import { createClient } from "@supabase/supabase-js";
 
 export async function POST(req: Request) {
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  if (!key) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY missing" }, { status: 500 });
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY ?? process.env.SUPABASE_SERVICE_KEY;
+  if (!key) {
+    return NextResponse.json(
+      { error: "Supabase service key missing (SUPABASE_SERVICE_ROLE_KEY or SUPABASE_SERVICE_KEY)" },
+      { status: 500 },
+    );
+  }
   const supabase = createClient(url, key);
   const body = await req.json();
   const { id, profession, search_keywords, resume_md, interview_md, work_history_md, scoring_overrides } = body;

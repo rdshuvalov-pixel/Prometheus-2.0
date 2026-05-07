@@ -73,6 +73,16 @@ def insert_vacancy(cli, row: dict) -> bool:
         return False
 
 
+def insert_stage(cli, row: dict) -> bool:
+    if cli is None:
+        return True
+    try:
+        cli.table("vacancies_stage").insert(row).execute()
+        return True
+    except Exception:
+        return False
+
+
 async def main_async(args: argparse.Namespace) -> None:
     apply_active_profile_id(args.profile_id)
     profile = get_active_profile()
@@ -108,21 +118,19 @@ async def main_async(args: argparse.Namespace) -> None:
             if not pf.passed:
                 rejected += 1
                 continue
-            if profile_id and insert_vacancy(
-                cli,
-                {
-                    "profile_id": profile_id,
-                    "company": rv.company,
-                    "role_title": rv.title,
-                    "role_title_normalized": normalize_title(rv.title),
-                    "company_normalized": normalize_company(rv.company),
-                    "url": rv.url,
-                    "description": rv.description,
-                    "status": "New",
-                    "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
-                    "warnings": pf.warnings,
-                },
-            ):
+            row_insert = {
+                "profile_id": profile_id,
+                "company": rv.company,
+                "role_title": rv.title,
+                "role_title_normalized": normalize_title(rv.title),
+                "company_normalized": normalize_company(rv.company),
+                "url": rv.url,
+                "description": rv.description,
+                **({"run_id": run_id, "status": "Staged"} if args.to_stage else {"status": "New"}),
+                "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
+                "warnings": pf.warnings,
+            }
+            if profile_id and (insert_stage(cli, row_insert) if args.to_stage else insert_vacancy(cli, row_insert)):
                 kept += 1
         metrics = {"processed": processed, "kept": kept, "rejected": rejected}
         if run_id:
@@ -273,13 +281,13 @@ async def main_async(args: argparse.Namespace) -> None:
                 "company_normalized": cn,
                 "url": rv.url,
                 "description": rv.description,
-                "status": "New",
+                **({"run_id": run_id, "status": "Staged"} if args.to_stage else {"status": "New"}),
                 "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
                 "warnings": pf.warnings,
             }
             if prev_id:
                 row_insert["previous_vacancy_id"] = prev_id
-            if insert_vacancy(cli, row_insert):
+            if (insert_stage(cli, row_insert) if args.to_stage else insert_vacancy(cli, row_insert)):
                 target_kept += 1
             else:
                 target_rejected += 1
@@ -363,6 +371,7 @@ def main() -> None:
     parser.add_argument("--concurrency", type=int, default=3, help="Parallel targets to crawl")
     parser.add_argument("--target-timeout-s", dest="target_timeout_s", type=int, default=120, help="Timeout per target")
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
+    parser.add_argument("--to-stage", action="store_true", help="Писать результаты в vacancies_stage вместо vacancies")
     args = parser.parse_args()
     asyncio.run(main_async(args))
 

@@ -1,6 +1,6 @@
 import type { ReactNode } from "react";
 import { createServerSupabase } from "@/lib/supabase/server";
-import { MarkApplied } from "./ui";
+import { GenerateFormal, MarkApplied } from "./ui";
 
 const REJECT_HINTS: Record<string, string> = {
   country_blacklisted: "Стоп-лист локаций (Cyprus/Georgia и др.) без явного EU-remote.",
@@ -103,7 +103,10 @@ export default async function VacancyPage({ params }: { params: { id: string } }
       <div>
         <h2 className="font-medium text-neutral-900">Сопроводительное (formal)</h2>
         {(letters || []).length === 0 && (
-          <p className="text-neutral-600 text-sm">Пока нет письма. Запустите run_write.</p>
+          <div className="space-y-2">
+            <p className="text-neutral-600 text-sm">Пока нет письма. Можно сгенерировать по кнопке.</p>
+            <GenerateFormal id={params.id} />
+          </div>
         )}
         {(letters || []).map((l: { kind: string; body: string }) => (
           <section key={l.kind} className="mt-2">

@@ -25,4 +25,4 @@ run "${EXEC[@]}" python -m backend.pipeline.run_crawl --tier 3 --limit 0 --concu
 run "${EXEC[@]}" python -m backend.pipeline.run_crawl --tier 4 --limit "$LIMIT_TIER4"
 run "${EXEC[@]}" python -m backend.pipeline.run_enrich --batch 100 --drain
 run "${EXEC[@]}" python -m backend.pipeline.run_score --batch 100 --drain --batch-mode --chunk-size 10 --delay 0.15
-run "${EXEC[@]}" python -m backend.pipeline.run_write --batch 20 --drain --delay 0.15
+# cover letter generation is on-demand (per-vacancy), not part of the default pipeline

@@ -160,8 +160,6 @@ async def main_async(args: argparse.Namespace) -> None:
     kept = 0
     rejected = 0
 
-    sem = asyncio.Semaphore(max(1, int(args.concurrency)))
-
     async def process_target(t: dict) -> tuple[int, int, int]:
         company_name = t.get("company") or ""
         t0 = time.perf_counter()
@@ -183,8 +181,20 @@ async def main_async(args: argparse.Namespace) -> None:
         errored = False
 
         try:
-            async with sem:
-                raws = await collect_for_target(t, profile)
+            raws = await asyncio.wait_for(
+                collect_for_target(t, profile),
+                timeout=max(1, int(args.target_timeout_s)),
+            )
+        except TimeoutError:
+            errored = True
+            raws = []
+            log_event(
+                run_id,
+                "crawl_error",
+                {"company": company_name, "error": f"target_timeout_{int(args.target_timeout_s)}s"},
+                level="error",
+            )
+            record_failure(normalize_company(company_name), run_id)
         except Exception as e:
             errored = True
             raws = []
@@ -281,6 +291,21 @@ async def main_async(args: argparse.Namespace) -> None:
                 )
 
         elapsed_ms = int((time.perf_counter() - t0) * 1000)
+        print(
+            json.dumps(
+                {
+                    "event": "target_done",
+                    "company": company_name,
+                    "raws": len(raws),
+                    "processed": target_processed,
+                    "kept": target_kept,
+                    "rejected": target_rejected,
+                    "elapsed_ms": elapsed_ms,
+                    "errored": errored,
+                },
+                ensure_ascii=False,
+            )
+        )
         log_event(
             run_id,
             "target_done",
@@ -296,11 +321,28 @@ async def main_async(args: argparse.Namespace) -> None:
         )
         return (target_processed, target_kept, target_rejected)
 
-    results = await asyncio.gather(*(process_target(t) for t in slice_targets))
-    for tp, tk, tr in results:
-        processed += tp
-        kept += tk
-        rejected += tr
+    q: asyncio.Queue[dict | None] = asyncio.Queue()
+    for t in slice_targets:
+        q.put_nowait(t)
+    workers_n = max(1, int(args.concurrency))
+    for _ in range(workers_n):
+        q.put_nowait(None)
+
+    async def worker() -> None:
+        nonlocal processed, kept, rejected
+        while True:
+            t = await q.get()
+            try:
+                if t is None:
+                    return
+                tp, tk, tr = await process_target(t)
+                processed += tp
+                kept += tk
+                rejected += tr
+            finally:
+                q.task_done()
+
+    await asyncio.gather(*(worker() for _ in range(workers_n)))
 
     metrics = {"processed": processed, "kept": kept, "rejected": rejected}
     if run_id:
@@ -319,6 +361,7 @@ def main() -> None:
         help="Число целей tier (0 = без ограничения, обходит все)",
     )
     parser.add_argument("--concurrency", type=int, default=3, help="Parallel targets to crawl")
+    parser.add_argument("--target-timeout-s", dest="target_timeout_s", type=int, default=120, help="Timeout per target")
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
     args = parser.parse_args()
     asyncio.run(main_async(args))

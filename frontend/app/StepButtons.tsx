@@ -23,7 +23,8 @@ export function StepButtons() {
     try {
       const res = await fetch(`/api/pipeline/step/${step}`, { method: "POST" });
       const text = await res.text();
-      setLast({ step, ok: res.ok, message: text });
+      const body = text && text.trim().length ? text : "<empty body>";
+      setLast({ step, ok: res.ok, message: `${res.status} ${res.statusText}\n${body}` });
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e);
       setLast({ step, ok: false, message: msg });

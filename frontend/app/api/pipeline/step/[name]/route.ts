@@ -15,18 +15,24 @@ export async function POST(_: Request, { params }: { params: { name: string } })
   if (!secret) return NextResponse.json({ error: "PIPELINE_API_SECRET missing" }, { status: 500 });
   const profileId = await getActiveProfileId();
 
-  const resp = await fetch(`${base}/pipeline/step/${encodeURIComponent(params.name)}`, {
-    method: "POST",
-    headers: {
-      Authorization: `Bearer ${secret}`,
-      ...(profileId ? { "X-Profile-Id": profileId } : {}),
-    },
-    cache: "no-store",
-  });
-  const text = await resp.text();
-  return new NextResponse(text, {
-    status: resp.status,
-    headers: { "content-type": resp.headers.get("content-type") || "application/json" },
-  });
+  const url = `${base.replace(/\\/+$/, "")}/pipeline/step/${encodeURIComponent(params.name)}`;
+  try {
+    const resp = await fetch(url, {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${secret}`,
+        ...(profileId ? { "X-Profile-Id": profileId } : {}),
+      },
+      cache: "no-store",
+    });
+    const text = await resp.text();
+    return new NextResponse(text || "", {
+      status: resp.status,
+      headers: { "content-type": resp.headers.get("content-type") || "application/json" },
+    });
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    return NextResponse.json({ error: "fetch_failed", detail: msg, url }, { status: 502 });
+  }
 }
 

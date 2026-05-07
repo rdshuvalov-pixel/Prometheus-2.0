@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 type Lang = "en" | "ru";
 
 const LS_KEY = "prometei-lang";
+const LS_COLLAPSE_KEY = "prometei-desc-collapsed";
 
 const TEXT = {
   en: {
@@ -83,8 +84,16 @@ const TEXT = {
   },
 } as const;
 
+function clampAfter(source: string, needle: string): string {
+  const i = source.toLowerCase().indexOf(needle.toLowerCase());
+  if (i < 0) return source;
+  const end = i + needle.length;
+  return source.slice(0, end);
+}
+
 export default function DescriptionPanel() {
   const [lang, setLang] = useState<Lang>("en");
+  const [collapsed, setCollapsed] = useState(true);
 
   useEffect(() => {
     try {
@@ -103,7 +112,30 @@ export default function DescriptionPanel() {
     }
   }, [lang]);
 
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(LS_COLLAPSE_KEY);
+      if (saved === "0") setCollapsed(false);
+      if (saved === "1") setCollapsed(true);
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  useEffect(() => {
+    try {
+      window.localStorage.setItem(LS_COLLAPSE_KEY, collapsed ? "1" : "0");
+    } catch {
+      // ignore
+    }
+  }, [collapsed]);
+
   const t = useMemo(() => TEXT[lang], [lang]);
+  const firstLine = t.sections[0]?.lines[0] ?? "";
+  const collapsedLine =
+    lang === "ru"
+      ? clampAfter(firstLine, "сбор вакансий")
+      : clampAfter(firstLine, "collecting vacancies");
 
   return (
     <section className="rounded-2xl border border-neutral-200 bg-white/90 backdrop-blur-sm p-5 shadow-sm">
@@ -138,16 +170,42 @@ export default function DescriptionPanel() {
       </div>
 
       <div className="mt-4 grid gap-4">
-        {t.sections.map((s) => (
-          <div key={s.title} className="grid gap-2">
-            <div className="text-sm font-semibold text-neutral-900">{s.title}</div>
-            <ul className="list-disc pl-5 text-sm text-neutral-800 grid gap-1">
-              {s.lines.map((x) => (
-                <li key={x}>{x}</li>
-              ))}
-            </ul>
+        {collapsed ? (
+          <div className="grid gap-3">
+            <div className="text-sm font-semibold text-neutral-900">{t.sections[0]?.title}</div>
+            <p className="text-sm text-neutral-800 leading-relaxed">
+              {collapsedLine}
+              {collapsedLine !== firstLine ? "…" : ""}
+            </p>
+            <button
+              type="button"
+              onClick={() => setCollapsed(false)}
+              className="self-start text-sm font-semibold text-candy-800 hover:text-candy-600 hover:underline"
+            >
+              {lang === "ru" ? "Читать полностью" : "Read more"}
+            </button>
           </div>
-        ))}
+        ) : (
+          <>
+            {t.sections.map((s) => (
+              <div key={s.title} className="grid gap-2">
+                <div className="text-sm font-semibold text-neutral-900">{s.title}</div>
+                <ul className="list-disc pl-5 text-sm text-neutral-800 grid gap-1">
+                  {s.lines.map((x) => (
+                    <li key={x}>{x}</li>
+                  ))}
+                </ul>
+              </div>
+            ))}
+            <button
+              type="button"
+              onClick={() => setCollapsed(true)}
+              className="self-start text-sm font-semibold text-neutral-700 hover:text-neutral-900 hover:underline"
+            >
+              {lang === "ru" ? "Свернуть" : "Collapse"}
+            </button>
+          </>
+        )}
       </div>
     </section>
   );

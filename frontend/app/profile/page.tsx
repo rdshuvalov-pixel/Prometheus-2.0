@@ -16,11 +16,11 @@ export default async function ProfilePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-2xl font-semibold">Профиль кандидата</h1>
+      <h1 className="text-2xl font-semibold">Candidate profile</h1>
       <CreateProfileButton />
       {!profile && (
         <p className="text-slate-400">
-          Нет записи в candidate_profiles. Запустите seed_profile и проверьте RLS.
+          No rows in candidate_profiles. Run seed_profile and check RLS.
         </p>
       )}
       {profile && <Editor profile={profile} />}

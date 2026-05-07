@@ -118,11 +118,14 @@ export default async function HomePage() {
         .order("ts", { ascending: true })
     : { data: null };
 
-  const { data: events } = await supabase
-    .from("pipeline_events")
-    .select("ts, level, type, payload")
-    .order("ts", { ascending: false })
-    .limit(20);
+  const { data: events } = runId
+    ? await supabase
+        .from("pipeline_events")
+        .select("ts, level, type, payload")
+        .eq("run_id", runId)
+        .order("ts", { ascending: false })
+        .limit(200)
+    : { data: null };
 
   const metrics = (run?.metrics as Record<string, unknown> | null) ?? null;
   const dur = durationMs(run?.started_at, run?.finished_at);
@@ -334,36 +337,61 @@ export default async function HomePage() {
       </section>
 
       <section className="space-y-2">
-        <h2 className="text-lg font-medium text-neutral-900">Последние события</h2>
-        {(!events || events.length === 0) && (
-          <p className="text-neutral-700 text-sm">Пока нет событий в pipeline_events.</p>
+        <h2 className="text-lg font-medium text-neutral-900">Run log</h2>
+        {(!runId || !events || events.length === 0) && (
+          <p className="text-neutral-700 text-sm">No events for the last run yet.</p>
         )}
-        {events && events.length > 0 && (
-          <ul className="space-y-2">
-            {events.map(
-              (e: { ts: string; level: string; type: string; payload: unknown }, i: number) => (
-                <li
-                  key={`${e.ts}-${e.type}-${i}`}
-                  className="rounded border border-neutral-200 bg-white/90 px-3 py-2 text-sm shadow-sm"
+        {runId && events && events.length > 0 && (
+          <details className="group rounded-lg border border-neutral-200 bg-white/90 shadow-sm">
+            <summary className="cursor-pointer list-none flex flex-wrap items-center justify-between gap-2 px-4 py-3 [&::-webkit-details-marker]:hidden">
+              <div className="flex items-center gap-2">
+                <span className="text-neutral-500 group-open:hidden">▸</span>
+                <span className="text-neutral-500 hidden group-open:inline">▾</span>
+                <span className="font-semibold text-neutral-900">Run log</span>
+                <span className="text-xs text-neutral-600">({events.length} events)</span>
+              </div>
+              <div className="flex items-center gap-2 text-xs">
+                <span className="rounded border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-neutral-800 font-medium">
+                  errors: {events.filter((e) => String(e.level || "").toLowerCase() === "error").length}
+                </span>
+                <span className="rounded border border-neutral-200 bg-neutral-100 px-2 py-0.5 text-neutral-800 font-medium">
+                  warnings: {events.filter((e) => ["warn", "warning"].includes(String(e.level || "").toLowerCase())).length}
+                </span>
+              </div>
+            </summary>
+            <div className="border-t border-neutral-200">
+              <div className="max-h-[420px] overflow-auto">
+                <ul className="divide-y divide-neutral-200">
+                  {events.map((e: { ts: string; level: string; type: string; payload: unknown }, i: number) => (
+                    <li key={`${e.ts}-${e.type}-${i}`} className="px-4 py-2 text-xs">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <time className="text-neutral-600 tabular-nums">{formatTs(e.ts)}</time>
+                        <span className={`text-[11px] px-1.5 py-0.5 rounded border ${levelClass(e.level || "info")}`}>
+                          {String(e.level || "info")}
+                        </span>
+                        <span className="text-neutral-900 font-semibold">{e.type}</span>
+                      </div>
+                      {e.payload != null &&
+                        (typeof e.payload !== "object" ||
+                          (e.payload !== null && Object.keys(e.payload as object).length > 0)) && (
+                          <p className="mt-1 text-[11px] text-neutral-700 font-mono break-all">
+                            {payloadPreview(e.payload)}
+                          </p>
+                        )}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+              <div className="px-4 py-3 text-sm">
+                <Link
+                  href={`/timeline?run_id=${runId}`}
+                  className="font-medium text-candy-800 hover:text-candy-600 hover:underline"
                 >
-                  <div className="flex flex-wrap items-center gap-2">
-                    <time className="text-neutral-600 tabular-nums">{formatTs(e.ts)}</time>
-                    <span className={`text-xs px-1.5 py-0.5 rounded border ${levelClass(e.level || "info")}`}>
-                      {e.level}
-                    </span>
-                    <span className="text-neutral-900 font-medium">{e.type}</span>
-                  </div>
-                  {e.payload != null &&
-                    (typeof e.payload !== "object" ||
-                      (e.payload !== null && Object.keys(e.payload as object).length > 0)) && (
-                      <p className="mt-1 text-xs text-neutral-600 font-mono break-all">
-                        {payloadPreview(e.payload)}
-                      </p>
-                    )}
-                </li>
-              ),
-            )}
-          </ul>
+                  View full timeline
+                </Link>
+              </div>
+            </div>
+          </details>
         )}
       </section>
     </div>

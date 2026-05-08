@@ -14,8 +14,8 @@ import os
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
-from backend.llm.functions.normalize_vacancy import normalize_vacancy
 from backend.debug_log import dbg
+from backend.llm.functions.normalize_vacancy import normalize_vacancy
 
 
 def _utc_iso() -> str:
@@ -112,8 +112,8 @@ async def main_async(args: argparse.Namespace) -> None:
                     data={
                         "id": str(sid),
                         "url": url[:300],
-                        "page_text_full_len": len((v.get("page_text_full") or "")),
-                        "desc_len": len((v.get("description") or "")),
+                        "page_text_full_len": len(v.get("page_text_full") or ""),
+                        "desc_len": len(v.get("description") or ""),
                     },
                     run_id=args.run_id,
                 )

@@ -16,9 +16,9 @@ import json
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
+from backend.debug_log import dbg
 from backend.pipeline.dedup import dedup_check
 from backend.pipeline.normalize.text import normalize_company
-from backend.debug_log import dbg
 
 
 def _utc_iso() -> str:

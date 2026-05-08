@@ -337,6 +337,8 @@ async def pipeline_step(
             "--drain",
             "--run-id",
             run_id or "",
+            "--timeout-s",
+            "90",
             "--profile-id",
             x_profile_id or "",
         ]

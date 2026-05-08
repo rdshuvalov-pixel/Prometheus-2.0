@@ -31,6 +31,17 @@ def _stage_status_from_vacancy_status(vac_status: str) -> str:
     return "ScoredSelected" if vac_status == "Scored" else "ScoredRejected"
 
 
+def _build_score_summary(score: int, group_a_passed: bool, risks: list[str], *, limit: int = 220) -> str:
+    base = "Релевантность высокая." if score >= 70 else ("Релевантность средняя." if score >= 50 else "Релевантность низкая.")
+    if not group_a_passed:
+        base = "Критический блок не пройден — итог ограничен."
+    tail = ""
+    if risks:
+        tail = " Риски: " + "; ".join(risks[:3])
+    out = (base + tail).strip()
+    return out[:limit]
+
+
 async def main_async(args: argparse.Namespace) -> None:
     if not os.getenv("OPENROUTER_API_KEY"):
         print("Set OPENROUTER_API_KEY")
@@ -100,6 +111,9 @@ async def main_async(args: argparse.Namespace) -> None:
                     payload = {
                         "score": score,
                         "score_breakdown": breakdown,
+                        "score_summary": _build_score_summary(score, group_a, list(getattr(ext, "risks", None) or [])),
+                        "score_risks": list(getattr(ext, "risks", None) or []),
+                        "score_confidence": float(getattr(ext, "confidence", 0) or 0),
                         "status": stage_status,
                         "reject_reason": reject_reason,
                         "updated_at": datetime.now(timezone.utc).isoformat(),

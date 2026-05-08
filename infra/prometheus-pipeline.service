@@ -6,7 +6,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 WorkingDirectory=/opt/prometheus-20
-ExecStart=/usr/bin/bash /opt/prometheus-20/infra/run_pipeline.sh
+ExecStart=/usr/bin/bash /opt/prometheus-20/infra/run_crawl_stage.sh
 
 [Install]
 WantedBy=multi-user.target

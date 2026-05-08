@@ -121,12 +121,15 @@ async def main_async(args: argparse.Namespace) -> None:
             row_insert = {
                 "profile_id": profile_id,
                 "company": rv.company,
+                "company_name": rv.company,
                 "role_title": rv.title,
+                "job_title": rv.title,
                 "role_title_normalized": normalize_title(rv.title),
                 "company_normalized": normalize_company(rv.company),
                 "url": rv.url,
+                "job_url": rv.url,
                 "description": rv.description,
-                **({"run_id": run_id, "status": "Staged"} if args.to_stage else {"status": "New"}),
+                **({"run_id": run_id, "status": "Staged", "pipeline_status": "Staged"} if args.to_stage else {"status": "New"}),
                 "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
                 "warnings": pf.warnings,
             }
@@ -276,12 +279,15 @@ async def main_async(args: argparse.Namespace) -> None:
             row_insert = {
                 "profile_id": profile_id,
                 "company": rv.company,
+                "company_name": rv.company,
                 "role_title": title_final,
+                "job_title": title_final,
                 "role_title_normalized": normalize_title(title_final),
                 "company_normalized": cn,
                 "url": rv.url,
+                "job_url": rv.url,
                 "description": rv.description,
-                **({"run_id": run_id, "status": "Staged"} if args.to_stage else {"status": "New"}),
+                **({"run_id": run_id, "status": "Staged", "pipeline_status": "Staged"} if args.to_stage else {"status": "New"}),
                 "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
                 "warnings": pf.warnings,
             }

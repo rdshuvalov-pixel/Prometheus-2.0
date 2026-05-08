@@ -2,15 +2,29 @@
 
 import { useState } from "react";
 
-type Step = "crawl" | "normalize" | "dedup" | "score" | "promote" | "report";
+type Step =
+  | "crawl"
+  | "enrich_texts"
+  | "normalize_jobs"
+  | "deduplicate_jobs"
+  | "normalize"
+  | "dedup"
+  | "score"
+  | "promote"
+  | "report"
+  | "check_status";
 
 const STEPS: { id: Step; label: string }[] = [
   { id: "crawl", label: "Run crawl → stage" },
+  { id: "enrich_texts", label: "Enrich full texts" },
+  { id: "normalize_jobs", label: "LLM normalize jobs" },
+  { id: "deduplicate_jobs", label: "Dedup vs master" },
   { id: "normalize", label: "Run normalize" },
   { id: "dedup", label: "Run dedup" },
   { id: "score", label: "Run score + filters" },
   { id: "promote", label: "Promote to vacancies" },
   { id: "report", label: "Run report" },
+  { id: "check_status", label: "Check status" },
 ];
 
 export function StepButtons() {

@@ -48,3 +48,39 @@ class ExplainOut(BaseModel):
     why_kept: list[str] = Field(default_factory=list)
     risks: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
+
+
+class NormalizeVacancy(BaseModel):
+    """TЗ normalize: extract structured vacancy fields. Unknown/missing must be null/unknown."""
+
+    normalized_title: str | None = None
+    seniority: str | None = None
+    function: str | None = None
+    domain: str | None = None
+    industry: str | None = None
+    employment_type: str | None = None
+    work_format: str | None = None
+    location_normalized: str | None = None
+    country: str | None = None
+    remote_allowed: bool | None = None
+    hybrid_allowed: bool | None = None
+    relocation_required: bool | None = None
+    salary_min: int | None = None
+    salary_max: int | None = None
+    salary_currency: str | None = None
+    english_required: bool | None = None
+    product_type: str | None = None
+    b2b_or_b2c: str | None = None
+    ai_related: bool | None = None
+    fintech_related: bool | None = None
+    growth_related: bool | None = None
+    monetization_related: bool | None = None
+    platform_related: bool | None = None
+    technical_depth: str | None = None
+    management_scope: str | None = None
+    must_have_requirements: list[str] = Field(default_factory=list)
+    nice_to_have_requirements: list[str] = Field(default_factory=list)
+    responsibilities: list[str] = Field(default_factory=list)
+    red_flags: list[str] = Field(default_factory=list)
+    positive_signals: list[str] = Field(default_factory=list)
+    normalization_confidence: float | None = None

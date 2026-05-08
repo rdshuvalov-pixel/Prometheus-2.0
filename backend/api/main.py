@@ -79,7 +79,7 @@ async def pipeline_full(
     log_event(
         run_id,
         "full_queued",
-        {"profile_id": x_profile_id, "steps": ["crawl", "enrich", "score", "write"]},
+        {"profile_id": x_profile_id, "steps": ["crawl", "enrich_texts", "llm_normalize", "dedup_master", "score", "promote", "report"]},
     )
     steps = [
         [
@@ -92,33 +92,84 @@ async def pipeline_full(
             "4",
             "--profile-id",
             x_profile_id or "",
+            "--to-stage",
         ],
         [
             sys.executable,
             "-m",
-            "backend.pipeline.run_enrich",
+            "backend.pipeline.run_enrich_texts_stage",
             "--drain",
             "--batch",
             "40",
-            "--rps",
-            "0.15",
-            "--run_id",
+            "--delay",
+            "0.2",
+            "--run-id",
             run_id or "",
+            "--profile-id",
+            x_profile_id or "",
         ],
         [
             sys.executable,
             "-m",
-            "backend.pipeline.run_score",
+            "backend.pipeline.run_llm_normalize_stage",
+            "--drain",
+            "--batch",
+            "10",
+            "--delay",
+            "0.25",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_dedup_master_stage",
+            "--batch",
+            "200",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_score_stage",
             "--drain",
             "--batch",
             "50",
-            "--batch-mode",
             "--chunk-size",
             "5",
             "--delay",
             "0.2",
-            "--run_id",
+            "--run-id",
             run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_promote",
+            "--threshold",
+            "50",
+            "--batch",
+            "200",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_report",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
         ],
     ]
     env = {**os.environ, "PYTHONPATH": str(ROOT)}
@@ -267,6 +318,38 @@ async def pipeline_step(
         ]
     elif name == "normalize":
         args = [sys.executable, "-m", "backend.pipeline.run_normalize", "--profile-id", x_profile_id or ""]
+    elif name in ("enrich_texts", "enrich"):
+        args = [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_enrich_texts_stage",
+            "--drain",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ]
+    elif name in ("normalize_jobs", "llm_normalize"):
+        args = [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_llm_normalize_stage",
+            "--drain",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ]
+    elif name in ("deduplicate_jobs", "dedup_master"):
+        args = [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_dedup_master_stage",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
+        ]
     elif name == "dedup":
         args = [sys.executable, "-m", "backend.pipeline.run_dedup_stage", "--profile-id", x_profile_id or ""]
     elif name == "score":
@@ -300,6 +383,8 @@ async def pipeline_step(
             "--profile-id",
             x_profile_id or "",
         ]
+    elif name in ("check_status", "status"):
+        args = [sys.executable, "-m", "backend.pipeline.run_check_status_stage", "--profile-id", x_profile_id or ""]
     else:
         raise HTTPException(status_code=404, detail="Unknown step")
 

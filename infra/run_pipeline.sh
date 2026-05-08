@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Полный прогон: crawl по tier 1–4, затем enrich / score / write (всё в контейнере api).
-# Вызывать из systemd (см. prometheus-pipeline.service) или вручную: bash infra/run_pipeline.sh
+# Legacy full run (compat). По ТЗ автозапуск делает только crawl → stage: `infra/run_crawl_stage.sh`.
+# Этот скрипт оставлен для ручных экспериментов и обратной совместимости.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

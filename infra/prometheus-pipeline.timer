@@ -2,7 +2,7 @@
 Description=Daily Prometheus pipeline
 
 [Timer]
-OnCalendar=*-*-* 06,10,14,18,22:00:00 UTC
+OnCalendar=*-*-* 11:30:00 UTC
 RandomizedDelaySec=2min
 Persistent=true
 

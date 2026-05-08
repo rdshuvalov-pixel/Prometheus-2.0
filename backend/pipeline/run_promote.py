@@ -82,9 +82,31 @@ def main() -> None:
         }
 
         cli.table("vacancies").upsert(payload, on_conflict="profile_id,url").execute()
-        cli.table("vacancies_stage").update({"status": "Promoted", "promoted_at": now, "updated_at": now}).eq(
-            "id", sid
-        ).execute()
+        # Try to fetch master id for bookkeeping in stage (TЗ step #6).
+        master_id = None
+        try:
+            m = (
+                cli.table("vacancies")
+                .select("id")
+                .eq("profile_id", profile_id)
+                .eq("url", url)
+                .single()
+                .execute()
+            )
+            master_id = (getattr(m, "data", None) or {}).get("id")
+        except Exception:
+            master_id = None
+
+        cli.table("vacancies_stage").update(
+            {
+                "status": "Promoted",
+                "promoted_at": now,
+                "master_table_id": master_id,
+                "added_to_master_at": now,
+                "pipeline_status": "Added to master",
+                "updated_at": now,
+            }
+        ).eq("id", sid).execute()
         promoted += 1
 
     print(json.dumps({"promoted": promoted}, ensure_ascii=False))

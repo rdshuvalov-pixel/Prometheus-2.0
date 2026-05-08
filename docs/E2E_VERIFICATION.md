@@ -150,11 +150,11 @@ bash infra/run_pipeline.sh
 
 ### Установка systemd-таймера на VPS
 
-Юниты: [`infra/prometheus-pipeline.timer`](../infra/prometheus-pipeline.timer), [`infra/prometheus-pipeline.service`](../infra/prometheus-pipeline.service). Расписание в **UTC**: `06,10,14,18,22` с небольшим случайным сдвигом до 2 минут.
+Юниты: [`infra/prometheus-pipeline.timer`](../infra/prometheus-pipeline.timer), [`infra/prometheus-pipeline.service`](../infra/prometheus-pipeline.service).\n+\n+Сейчас по ТЗ **автоматически запускается только быстрый crawl → `vacancies_stage`** (без enrich/LLM/score/promote). Расписание в **UTC**: `11:30` с небольшим случайным сдвигом до 2 минут. Команды enrich/normalize/dedup/score/promote запускаются вручную из UI или через `POST /pipeline/step/{name}`.
 
 ```bash
 cd /opt/prometheus-20 && git pull origin main
-chmod +x infra/run_pipeline.sh
+chmod +x infra/run_crawl_stage.sh
 
 sudo cp infra/prometheus-pipeline.service infra/prometheus-pipeline.timer /etc/systemd/system/
 sudo systemctl daemon-reload

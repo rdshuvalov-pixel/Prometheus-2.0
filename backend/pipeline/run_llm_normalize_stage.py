@@ -14,7 +14,6 @@ import os
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
-from backend.debug_log import dbg
 from backend.llm.functions.normalize_vacancy import normalize_vacancy
 
 
@@ -33,15 +32,6 @@ def _merge_warnings(existing: object, *codes: str) -> list[str]:
 
 async def main_async(args: argparse.Namespace) -> None:
     if not os.getenv("OPENROUTER_API_KEY"):
-        # region agent log
-        dbg(
-            hypothesis_id="H2",
-            location="backend/pipeline/run_llm_normalize_stage.py:main_async",
-            message="OPENROUTER_API_KEY missing",
-            data={},
-            run_id=args.run_id,
-        )
-        # endregion
         print(json.dumps({"error": "OPENROUTER_API_KEY missing"}, ensure_ascii=False))
         return
 
@@ -50,15 +40,6 @@ async def main_async(args: argparse.Namespace) -> None:
     profile_id = str(profile.id) if profile.id else None
     cli = get_supabase()
     if cli is None or not profile_id:
-        # region agent log
-        dbg(
-            hypothesis_id="H3",
-            location="backend/pipeline/run_llm_normalize_stage.py:main_async",
-            message="no_supabase_or_profile",
-            data={"has_supabase": cli is not None, "has_profile_id": bool(profile_id)},
-            run_id=args.run_id,
-        )
-        # endregion
         print(json.dumps({"error": "no_supabase_or_profile"}, ensure_ascii=False))
         return
 
@@ -78,19 +59,8 @@ async def main_async(args: argparse.Namespace) -> None:
             .order("created_at", desc=False)
             .limit(max(1, int(args.batch)))
         )
-        if args.run_id:
-            q = q.eq("run_id", args.run_id)
         res = q.execute()
         rows = getattr(res, "data", None) or []
-        # region agent log
-        dbg(
-            hypothesis_id="H1",
-            location="backend/pipeline/run_llm_normalize_stage.py:query",
-            message="selected_rows",
-            data={"rows": len(rows), "batch": int(args.batch), "has_run_id_filter": bool(args.run_id)},
-            run_id=args.run_id,
-        )
-        # endregion
         if not rows:
             if args.run_id:
                 merge_run_metrics(args.run_id, {"stage_llm_normalized": normalized, "stage_llm_errors": errors})
@@ -104,20 +74,6 @@ async def main_async(args: argparse.Namespace) -> None:
             url = (v.get("url") or "").strip()
             now = _utc_iso()
             try:
-                # region agent log
-                dbg(
-                    hypothesis_id="H1",
-                    location="backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                    message="normalize_start",
-                    data={
-                        "id": str(sid),
-                        "url": url[:300],
-                        "page_text_full_len": len(v.get("page_text_full") or ""),
-                        "desc_len": len(v.get("description") or ""),
-                    },
-                    run_id=args.run_id,
-                )
-                # endregion
                 out = await normalize_vacancy(
                     job_title=(v.get("job_title") or v.get("role_title") or ""),
                     company_name=(v.get("company_name") or v.get("company") or ""),
@@ -131,15 +87,6 @@ async def main_async(args: argparse.Namespace) -> None:
                 )
             except Exception as e:
                 errors += 1
-                # region agent log
-                dbg(
-                    hypothesis_id="H4",
-                    location="backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                    message="normalize_error",
-                    data={"id": str(sid), "url": url[:300], "error": str(e)[:800]},
-                    run_id=args.run_id,
-                )
-                # endregion
                 cli.table("vacancies_stage").update(
                     {
                         "warnings": _merge_warnings(v.get("warnings"), "llm_normalize_failed"),
@@ -153,21 +100,6 @@ async def main_async(args: argparse.Namespace) -> None:
                 continue
 
             payload = out.model_dump()
-            # region agent log
-            dbg(
-                hypothesis_id="H5",
-                location="backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                message="normalize_ok",
-                data={
-                    "id": str(sid),
-                    "normalized_title": payload.get("normalized_title"),
-                    "work_format": payload.get("work_format"),
-                    "location_normalized": payload.get("location_normalized"),
-                    "confidence": payload.get("normalization_confidence"),
-                },
-                run_id=args.run_id,
-            )
-            # endregion
             cli.table("vacancies_stage").update(
                 {
                     "normalized_payload": payload,

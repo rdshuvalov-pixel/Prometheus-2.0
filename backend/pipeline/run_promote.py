@@ -47,8 +47,6 @@ def main() -> None:
         .order("created_at", desc=False)
         .limit(max(1, int(args.batch)))
     )
-    if args.run_id:
-        q = q.eq("run_id", args.run_id)
     res = q.execute()
     rows = getattr(res, "data", None) or []
     if not rows:

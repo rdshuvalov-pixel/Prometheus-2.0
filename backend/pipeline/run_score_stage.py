@@ -68,8 +68,6 @@ async def main_async(args: argparse.Namespace) -> None:
             .order("created_at", desc=False)
             .limit(args.batch)
         )
-        if args.run_id:
-            q = q.eq("run_id", args.run_id)
         res = q.execute()
         rows = getattr(res, "data", None) or []
         if not rows:

@@ -32,7 +32,8 @@ USER_RULES = """Extract normalized job fields from the following job posting.
 Rules:
 - normalized_title: clean role title without company, location, remote/hybrid, or employment type.
 - seniority: one of Intern, Junior, Middle, Senior, Lead, Principal, Head, Director, VP, C-level, Unknown.
-- function: one of Product Management, Product Marketing, Growth, Data, Engineering, Design, Operations, Sales, Marketing, Customer Success, Other, Unknown.
+- function: one of Product Management, Product Marketing, Growth, Data, Engineering,
+  Design, Operations, Sales, Marketing, Customer Success, Other, Unknown.
 - work_format: one of Remote, Hybrid, Onsite, Flexible, Unknown.
 - technical_depth: one of Low, Medium, High, Unknown.
 - b2b_or_b2c: one of B2B, B2C, B2B2C, Marketplace, Internal, Unknown.

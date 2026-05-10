@@ -19,10 +19,10 @@ from backend.crawlers.playwright_generic import fetch_with_playwright
 from backend.crawlers.workable import fetch_workable, short_from_url
 from backend.db.client import apply_active_profile_id, finish_run, get_active_profile, insert_run, log_event
 from backend.pipeline.crawl_alerts import record_failure
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW
 from backend.pipeline.dedup import dedup_check, reapply_title_suffix
 from backend.pipeline.filter.post_collection import post_collection_filter
 from backend.pipeline.filter.search_time import passes_search_filters
-from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW
 from backend.pipeline.normalize.text import normalize_company, normalize_title
 from backend.pipeline.raw_writer import persist_raw
 

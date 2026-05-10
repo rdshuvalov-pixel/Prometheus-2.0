@@ -122,7 +122,7 @@ async def main_async(args: argparse.Namespace) -> None:
             now = _utc_iso()
             company_norm = (v.get("company_normalized") or "").strip()
             if not company_norm:
-                company_norm = normalize_company((v.get("company_name") or v.get("company") or ""))
+                company_norm = normalize_company(v.get("company_name") or v.get("company") or "")
 
             try:
                 _norm_coro = normalize_vacancy(

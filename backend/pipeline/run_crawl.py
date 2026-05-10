@@ -22,6 +22,7 @@ from backend.pipeline.crawl_alerts import record_failure
 from backend.pipeline.dedup import dedup_check, reapply_title_suffix
 from backend.pipeline.filter.post_collection import post_collection_filter
 from backend.pipeline.filter.search_time import passes_search_filters
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW
 from backend.pipeline.normalize.text import normalize_company, normalize_title
 from backend.pipeline.raw_writer import persist_raw
 
@@ -103,6 +104,34 @@ async def main_async(args: argparse.Namespace) -> None:
         cli = __import__("backend.db.client", fromlist=["get_supabase"]).get_supabase()
         for rv in raws:
             persist_raw(rv)
+            if args.to_stage and not args.filter_at_crawl:
+                if not profile_id:
+                    kept += 1
+                    continue
+                cn = normalize_company(rv.company)
+                row_insert = {
+                    "profile_id": profile_id,
+                    "company": rv.company,
+                    "company_name": rv.company,
+                    "role_title": rv.title,
+                    "job_title": rv.title,
+                    "role_title_normalized": normalize_title(rv.title),
+                    "company_normalized": cn,
+                    "url": rv.url,
+                    "job_url": rv.url,
+                    "description": rv.description,
+                    "run_id": run_id,
+                    "status": "Staged",
+                    "pipeline_status": PIPELINE_CRAWL_RAW,
+                    "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
+                    "warnings": [],
+                }
+                if insert_stage(cli, row_insert):
+                    kept += 1
+                else:
+                    rejected += 1
+                continue
+
             ok_s, _ = passes_search_filters(rv.title, profile.search_keywords)
             if not ok_s:
                 rejected += 1
@@ -215,6 +244,40 @@ async def main_async(args: argparse.Namespace) -> None:
         for rv in raws:
             target_processed += 1
             persist_raw(rv)
+            if args.to_stage and not args.filter_at_crawl:
+                if not profile_id:
+                    target_kept += 1
+                    continue
+                cn = normalize_company(rv.company)
+                row_insert = {
+                    "profile_id": profile_id,
+                    "company": rv.company,
+                    "company_name": rv.company,
+                    "role_title": rv.title,
+                    "job_title": rv.title,
+                    "role_title_normalized": normalize_title(rv.title),
+                    "company_normalized": cn,
+                    "url": rv.url,
+                    "job_url": rv.url,
+                    "description": rv.description,
+                    "run_id": run_id,
+                    "status": "Staged",
+                    "pipeline_status": PIPELINE_CRAWL_RAW,
+                    "posted_at": rv.posted_at.isoformat() if rv.posted_at else None,
+                    "warnings": [],
+                }
+                if insert_stage(cli, row_insert):
+                    target_kept += 1
+                else:
+                    target_rejected += 1
+                    target_rejects["insert_failed"] = target_rejects.get("insert_failed", 0) + 1
+                    log_event(
+                        run_id,
+                        "vacancy_rejected",
+                        {"company": rv.company, "title": rv.title[:200], "reason": "insert_failed"},
+                    )
+                continue
+
             ok_search, _ = passes_search_filters(rv.title, profile.search_keywords)
             if not ok_search:
                 target_rejected += 1
@@ -378,6 +441,12 @@ def main() -> None:
     parser.add_argument("--target-timeout-s", dest="target_timeout_s", type=int, default=120, help="Timeout per target")
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
     parser.add_argument("--to-stage", action="store_true", help="Писать результаты в vacancies_stage вместо vacancies")
+    parser.add_argument(
+        "--filter-at-crawl",
+        action="store_true",
+        help="Вместе с --to-stage: применять фильтры сразу при крауле (старое поведение). "
+        "Без этого флага в stage пишется сырое CrawlRaw, фильтр — отдельным шагом run_crawl_filter_stage.",
+    )
     args = parser.parse_args()
     asyncio.run(main_async(args))
 

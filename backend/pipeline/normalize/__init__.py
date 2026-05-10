@@ -1,1 +1,1 @@
-"""Normalization helpers."""
+"""Normalize-stage helpers (fingerprints, text builders)."""

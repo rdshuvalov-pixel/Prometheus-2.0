@@ -15,6 +15,7 @@ import json
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW
 
 
 def _utc_iso() -> str:
@@ -42,6 +43,7 @@ def main() -> None:
         .select("id, company_normalized, role_title_normalized, posted_at, created_at")
         .eq("profile_id", profile_id)
         .eq("status", "Staged")
+        .neq("pipeline_status", PIPELINE_CRAWL_RAW)
         .neq("company_normalized", "")
         .neq("role_title_normalized", "")
         .order("created_at", desc=True)

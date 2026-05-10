@@ -11,41 +11,17 @@ import argparse
 import asyncio
 import json
 import os
-import time
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
-from backend.llm.functions.normalize_vacancy import normalize_vacancy
+from backend.llm.functions.normalize_vacancy import JOB_NORMALIZATION_PROMPT_VERSION, normalize_vacancy
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW, PIPELINE_CRAWL_REJECTED
+from backend.pipeline.normalize.job_fingerprint import compute_job_fingerprint
+from backend.pipeline.normalize.text import normalize_company
 
 
 def _utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
-
-def _dbg(hypothesis_id: str, location: str, message: str, data: dict, run_id: str | None) -> None:
-    # region agent log
-    import json as _json
-    from pathlib import Path
-
-    try:
-        Path("/Users/luqy/Documents/Cursor/Прометей 2.0/.cursor").mkdir(parents=True, exist_ok=True)
-        Path("/Users/luqy/Documents/Cursor/Прометей 2.0/.cursor/debug-9707ab.log").open("a", encoding="utf-8").write(
-            _json.dumps(
-                {
-                    "sessionId": "9707ab",
-                    "hypothesisId": hypothesis_id,
-                    "location": location,
-                    "message": message,
-                    "data": data,
-                    "runId": run_id,
-                    "timestamp": int(time.time() * 1000),
-                },
-                ensure_ascii=False,
-            )
-            + "\n"
-        )
-    except Exception:
-        pass
-    # endregion
 
 
 def _merge_warnings(existing: object, *codes: str) -> list[str]:
@@ -55,6 +31,31 @@ def _merge_warnings(existing: object, *codes: str) -> list[str]:
         if c not in out:
             out.append(c)
     return out
+
+
+def _summary_line(
+    *,
+    processed: int,
+    success: int,
+    failed: int,
+    model: str | None,
+    prompt_version: str,
+    skipped_duplicates: int = 0,
+) -> str:
+    # docs/llm_prompt.md §18 shape
+    return json.dumps(
+        {
+            "processed": processed,
+            "success": success,
+            "failed": failed,
+            "skipped_duplicates": skipped_duplicates,
+            "model": model,
+            "prompt_version": prompt_version,
+            "normalized": success,
+            "errors": failed,
+        },
+        ensure_ascii=False,
+    )
 
 
 async def main_async(args: argparse.Namespace) -> None:
@@ -72,15 +73,19 @@ async def main_async(args: argparse.Namespace) -> None:
 
     normalized = 0
     errors = 0
+    last_model: str | None = None
+
     while True:
         q = (
             cli.table("vacancies_stage")
             .select(
-                "id, url, platform, company, company_name, role_title, job_title, "
+                "id, url, platform, company, company_name, company_normalized, role_title, job_title, "
                 "description, page_text_full, location_raw, warnings, created_at"
             )
             .eq("profile_id", profile_id)
             .eq("status", "Staged")
+            .neq("pipeline_status", PIPELINE_CRAWL_RAW)
+            .neq("pipeline_status", PIPELINE_CRAWL_REJECTED)
             .neq("page_text_full", "")
             .is_("normalized_payload", "null")
             .order("created_at", desc=False)
@@ -88,17 +93,25 @@ async def main_async(args: argparse.Namespace) -> None:
         )
         res = q.execute()
         rows = getattr(res, "data", None) or []
-        _dbg(
-            "H1",
-            "backend/pipeline/run_llm_normalize_stage.py:query",
-            "selected_rows",
-            {"rows": len(rows), "batch": int(args.batch)},
-            args.run_id,
-        )
         if not rows:
             if args.run_id:
-                merge_run_metrics(args.run_id, {"stage_llm_normalized": normalized, "stage_llm_errors": errors})
-            print(json.dumps({"normalized": normalized, "errors": errors}, ensure_ascii=False))
+                merge_run_metrics(
+                    args.run_id,
+                    {
+                        "stage_llm_normalized": normalized,
+                        "stage_llm_errors": errors,
+                        "stage_llm_prompt_version": JOB_NORMALIZATION_PROMPT_VERSION,
+                    },
+                )
+            print(
+                _summary_line(
+                    processed=normalized + errors,
+                    success=normalized,
+                    failed=errors,
+                    model=last_model,
+                    prompt_version=JOB_NORMALIZATION_PROMPT_VERSION,
+                )
+            )
             return
 
         for v in rows:
@@ -107,22 +120,12 @@ async def main_async(args: argparse.Namespace) -> None:
                 continue
             url = (v.get("url") or "").strip()
             now = _utc_iso()
+            company_norm = (v.get("company_normalized") or "").strip()
+            if not company_norm:
+                company_norm = normalize_company((v.get("company_name") or v.get("company") or ""))
+
             try:
-                _dbg(
-                    "H2",
-                    "backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                    "normalize_start",
-                    {
-                        "id": str(sid),
-                        "url": url[:300],
-                        "page_text_full_len": len(v.get("page_text_full") or ""),
-                        "desc_len": len(v.get("description") or ""),
-                        "timeout_s": int(args.timeout_s),
-                    },
-                    args.run_id,
-                )
-                t0 = time.time()
-                out = await normalize_vacancy(
+                _norm_coro = normalize_vacancy(
                     job_title=(v.get("job_title") or v.get("role_title") or ""),
                     company_name=(v.get("company_name") or v.get("company") or ""),
                     job_url=url,
@@ -132,36 +135,14 @@ async def main_async(args: argparse.Namespace) -> None:
                     platform=(v.get("platform") or ""),
                     run_id=args.run_id,
                     vacancy_id=str(sid),
-                ) if args.timeout_s <= 0 else await asyncio.wait_for(
-                    normalize_vacancy(
-                        job_title=(v.get("job_title") or v.get("role_title") or ""),
-                        company_name=(v.get("company_name") or v.get("company") or ""),
-                        job_url=url,
-                        job_description=(v.get("description") or ""),
-                        page_text_full=(v.get("page_text_full") or ""),
-                        location_raw=(v.get("location_raw") or ""),
-                        platform=(v.get("platform") or ""),
-                        run_id=args.run_id,
-                        vacancy_id=str(sid),
-                    ),
-                    timeout=float(args.timeout_s),
                 )
-                _dbg(
-                    "H3",
-                    "backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                    "normalize_returned",
-                    {"id": str(sid), "elapsed_ms": int((time.time() - t0) * 1000)},
-                    args.run_id,
+                outcome = (
+                    await _norm_coro
+                    if args.timeout_s <= 0
+                    else await asyncio.wait_for(_norm_coro, timeout=float(args.timeout_s))
                 )
             except Exception as e:
                 errors += 1
-                _dbg(
-                    "H4",
-                    "backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                    "normalize_error",
-                    {"id": str(sid), "error_type": type(e).__name__, "error": str(e)[:800]},
-                    args.run_id,
-                )
                 cli.table("vacancies_stage").update(
                     {
                         "warnings": _merge_warnings(v.get("warnings"), "llm_normalize_failed"),
@@ -174,14 +155,22 @@ async def main_async(args: argparse.Namespace) -> None:
                 await asyncio.sleep(args.delay)
                 continue
 
+            out = outcome.payload
+            last_model = outcome.llm_model or last_model
             payload = out.model_dump()
-            _dbg(
-                "H5",
-                "backend/pipeline/run_llm_normalize_stage.py:normalize_one",
-                "normalize_ok",
-                {"id": str(sid), "confidence": payload.get("normalization_confidence")},
-                args.run_id,
+            warns = _merge_warnings(v.get("warnings"))
+            if outcome.enum_coerced:
+                warns = _merge_warnings(warns, "llm_enum_coerced")
+
+            fp = compute_job_fingerprint(
+                company_normalized=company_norm,
+                normalized_title=payload.get("normalized_title"),
+                seniority=payload.get("seniority"),
+                function=payload.get("function"),
+                country=payload.get("country"),
+                location_normalized=payload.get("location_normalized"),
             )
+
             cli.table("vacancies_stage").update(
                 {
                     "normalized_payload": payload,
@@ -216,6 +205,12 @@ async def main_async(args: argparse.Namespace) -> None:
                     "red_flags": payload.get("red_flags") or [],
                     "positive_signals": payload.get("positive_signals") or [],
                     "normalization_confidence": payload.get("normalization_confidence"),
+                    "job_fingerprint": fp,
+                    "llm_model": outcome.llm_model or None,
+                    "prompt_version": outcome.prompt_version,
+                    "normalized_at": now,
+                    "input_char_count": outcome.input_char_count,
+                    "warnings": warns,
                     "pipeline_status": "Normalized",
                     "updated_at": now,
                 }
@@ -225,14 +220,29 @@ async def main_async(args: argparse.Namespace) -> None:
 
         if not args.drain:
             if args.run_id:
-                merge_run_metrics(args.run_id, {"stage_llm_normalized": normalized, "stage_llm_errors": errors})
-            print(json.dumps({"normalized": normalized, "errors": errors}, ensure_ascii=False))
+                merge_run_metrics(
+                    args.run_id,
+                    {
+                        "stage_llm_normalized": normalized,
+                        "stage_llm_errors": errors,
+                        "stage_llm_prompt_version": JOB_NORMALIZATION_PROMPT_VERSION,
+                    },
+                )
+            print(
+                _summary_line(
+                    processed=normalized + errors,
+                    success=normalized,
+                    failed=errors,
+                    model=last_model,
+                    prompt_version=JOB_NORMALIZATION_PROMPT_VERSION,
+                )
+            )
             return
 
 
 def main() -> None:
     p = argparse.ArgumentParser()
-    p.add_argument("--batch", type=int, default=10)
+    p.add_argument("--batch", type=int, default=15, help="Jobs per batch (docs recommend 10–20)")
     p.add_argument("--delay", type=float, default=0.25)
     p.add_argument("--run-id", dest="run_id", default=None)
     p.add_argument("--drain", action="store_true")
@@ -245,4 +255,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-

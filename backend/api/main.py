@@ -79,7 +79,10 @@ async def pipeline_full(
     log_event(
         run_id,
         "full_queued",
-        {"profile_id": x_profile_id, "steps": ["crawl", "enrich_texts", "llm_normalize", "dedup_master", "score", "promote", "report"]},
+        {
+            "profile_id": x_profile_id,
+            "steps": ["crawl", "crawl_filter", "enrich_texts", "llm_normalize", "dedup_master", "score", "promote", "report"],
+        },
     )
     steps = [
         [
@@ -93,6 +96,18 @@ async def pipeline_full(
             "--profile-id",
             x_profile_id or "",
             "--to-stage",
+        ],
+        [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_crawl_filter_stage",
+            "--drain",
+            "--batch",
+            "100",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
         ],
         [
             sys.executable,
@@ -315,6 +330,19 @@ async def pipeline_step(
             "--profile-id",
             x_profile_id or "",
             "--to-stage",
+        ]
+    elif name in ("crawl_filter", "filter_crawl", "post_crawl_filter"):
+        args = [
+            sys.executable,
+            "-m",
+            "backend.pipeline.run_crawl_filter_stage",
+            "--drain",
+            "--batch",
+            "100",
+            "--run-id",
+            run_id or "",
+            "--profile-id",
+            x_profile_id or "",
         ]
     elif name == "normalize":
         args = [sys.executable, "-m", "backend.pipeline.run_normalize", "--profile-id", x_profile_id or ""]

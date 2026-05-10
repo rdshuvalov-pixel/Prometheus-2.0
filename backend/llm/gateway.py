@@ -97,6 +97,8 @@ async def chat_json(
     vacancy_id: str | None = None,
     function: str = "chat_json",
     auto_router: bool = True,
+    temperature: float = 0.2,
+    out_model: list[str] | None = None,
 ) -> T:
     """Вызов OpenRouter Chat Completions, парсинг JSON → pydantic."""
     cfg = _load_models()
@@ -120,13 +122,16 @@ async def chat_json(
     ch: str | None = None
     if cache_on:
         cache_key_src = json.dumps(
-            {"messages": messages, "model": model, "function": function},
+            {"messages": messages, "model": model, "function": function, "temperature": temperature},
             ensure_ascii=False,
             sort_keys=True,
         )
         ch = compute_content_hash(cache_key_src)
         hit = cache_get(url_key, ch, function)
         if hit is not None:
+            if out_model is not None:
+                out_model.clear()
+                out_model.append(model)
             return schema.model_validate(hit)
 
     headers = {
@@ -138,7 +143,7 @@ async def chat_json(
     body = {
         "model": model,
         "messages": messages,
-        "temperature": 0.2,
+        "temperature": temperature,
         "response_format": {"type": "json_object"},
     }
 
@@ -194,6 +199,10 @@ async def chat_json(
     if cache_on and ch is not None:
         cache_set(url_key, ch, function, result.model_dump())
 
+    if out_model is not None:
+        out_model.clear()
+        out_model.append(model)
+
     return result
 
 
@@ -238,6 +247,8 @@ async def chat_json_with_fallback(
     run_id: str | None = None,
     vacancy_id: str | None = None,
     function: str = "chat_json",
+    temperature: float = 0.2,
+    out_model: list[str] | None = None,
 ) -> T:
     """Сначала указанный tier; при ошибке парсинга/валидации — strong.
     Если в ответе confidence < 0.6 — один повтор на strong (прометы с низкой уверенностью)."""
@@ -250,6 +261,8 @@ async def chat_json_with_fallback(
             vacancy_id=vacancy_id,
             function=function,
             auto_router=True,
+            temperature=temperature,
+            out_model=out_model,
         )
     except (JSONParseError, ValueError, httpx.HTTPError):
         return await chat_json(
@@ -261,6 +274,8 @@ async def chat_json_with_fallback(
             vacancy_id=vacancy_id,
             function=function + "_fallback",
             auto_router=False,
+            temperature=temperature,
+            out_model=out_model,
         )
     if schema is ExtractScoring:
         conf = float(getattr(result, "confidence", 1.0) or 1.0)
@@ -274,5 +289,7 @@ async def chat_json_with_fallback(
                 vacancy_id=vacancy_id,
                 function=function + "_confidence_retry",
                 auto_router=False,
+                temperature=temperature,
+                out_model=out_model,
             )
     return result

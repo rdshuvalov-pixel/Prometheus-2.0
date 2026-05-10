@@ -10,6 +10,7 @@ import argparse
 import json
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW, PIPELINE_CRAWL_REJECTED
 
 
 def _count(cli, table: str, *, profile_id: str, filters: list[tuple[str, str, object]]) -> int:
@@ -42,6 +43,10 @@ def main() -> None:
 
     out = {
         "stage_total": _count(cli, "vacancies_stage", profile_id=profile_id, filters=[]),
+        "stage_crawl_raw": _count(cli, "vacancies_stage", profile_id=profile_id, filters=[("eq", "pipeline_status", PIPELINE_CRAWL_RAW)]),
+        "stage_crawl_rejected": _count(
+            cli, "vacancies_stage", profile_id=profile_id, filters=[("eq", "pipeline_status", PIPELINE_CRAWL_REJECTED)]
+        ),
         "stage_without_full_text": _count(
             cli, "vacancies_stage", profile_id=profile_id, filters=[("eq", "status", "Staged"), ("is", "page_text_full", "null")]
         )

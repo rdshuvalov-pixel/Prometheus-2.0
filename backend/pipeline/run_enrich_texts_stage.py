@@ -26,6 +26,7 @@ from backend.db.client import (
     get_supabase,
     merge_run_metrics,
 )
+from backend.pipeline.crawl_constants import PIPELINE_AFTER_CRAWL_FILTER
 
 
 def _utc_iso() -> str:
@@ -126,6 +127,7 @@ async def main_async(args: argparse.Namespace) -> None:
             .select("id, url, description, page_text_full, warnings, pipeline_status, created_at")
             .eq("profile_id", profile_id)
             .eq("status", "Staged")
+            .eq("pipeline_status", PIPELINE_AFTER_CRAWL_FILTER)
             .or_("page_text_full.is.null,page_text_full.eq.")
             .order("created_at", desc=False)
             .limit(max(1, int(args.batch)))

@@ -16,6 +16,7 @@ import json
 from datetime import datetime, timezone
 
 from backend.db.client import apply_active_profile_id, get_active_profile, get_supabase, merge_run_metrics
+from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW, PIPELINE_CRAWL_REJECTED
 from backend.pipeline.dedup import dedup_check
 from backend.pipeline.normalize.text import normalize_company
 
@@ -59,6 +60,8 @@ def main() -> None:
         .select("id, company, company_normalized, role_title, normalized_title, url, platform, location_normalized, seniority, posted_at")
         .eq("profile_id", profile_id)
         .eq("status", "Staged")
+        .neq("pipeline_status", PIPELINE_CRAWL_RAW)
+        .neq("pipeline_status", PIPELINE_CRAWL_REJECTED)
         .is_("duplicate_of_id", "null")
         .neq("company_normalized", "")
         .order("created_at", desc=False)

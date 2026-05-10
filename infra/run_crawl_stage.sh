@@ -1,5 +1,6 @@
 #!/usr/bin/env bash
-# Автозапуск по ТЗ: только быстрый crawl → vacancies_stage (без enrich/LLM/score/promote).
+# Crawl → vacancies_stage (без enrich/LLM/score/promote). Вызывается вручную или из systemd,
+# если вы сами включили таймер и задали расписание в prometheus-pipeline.timer.
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

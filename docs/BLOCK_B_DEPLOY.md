@@ -37,7 +37,7 @@
 ## B.8 VPS
 
 Клон репозитория, `.env`, `bash infra/bootstrap.sh`.  
-Systemd: `infra/prometheus-pipeline.{service,timer}`.
+Опционально systemd: `infra/prometheus-pipeline.service` + `infra/prometheus-pipeline.timer` — в репозитории **таймер без реального расписания** (автозапуск отключён); при необходимости задайте `OnCalendar` и `systemctl enable --now prometheus-pipeline.timer`.
 
 ## B.9 E2E
 

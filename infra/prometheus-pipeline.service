@@ -1,5 +1,5 @@
 [Unit]
-Description=Prometheus 2.0 full pipeline
+Description=Prometheus 2.0 pipeline crawl (oneshot; trigger manually or via timer if enabled)
 After=docker.service network-online.target
 Wants=network-online.target
 

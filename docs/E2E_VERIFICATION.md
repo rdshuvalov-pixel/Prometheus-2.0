@@ -124,7 +124,7 @@ docker compose exec api python -m backend.pipeline.run_score --batch 50
 docker compose exec api python -m backend.pipeline.run_enrich --since 2026-01-01 --batch 200
 ```
 
-## 8. Полный прогон всех tier и ежедневный таймер (systemd)
+## 8. Полный прогон всех tier и systemd (без автозапуска по умолчанию)
 
 Разовый полный прогон (из каталога `infra/`, контейнер `api` должен быть запущен):
 
@@ -138,7 +138,7 @@ docker compose exec -T api python -m backend.pipeline.run_score --batch 100
 docker compose exec -T api python -m backend.pipeline.run_write --batch 20
 ```
 
-То же через скрипт в репозитории (удобно для cron/systemd):
+То же через скрипт в репозитории (только вручную / свой cron):
 
 ```bash
 cd /opt/prometheus-20
@@ -148,27 +148,23 @@ bash infra/run_pipeline.sh
 
 Для tier 4 можно переопределить лимит: `LIMIT_TIER4=100 bash infra/run_pipeline.sh`.
 
-### Установка systemd-таймера на VPS
+### Systemd на VPS: таймер в репозитории без реального расписания
 
-Юниты: [`infra/prometheus-pipeline.timer`](../infra/prometheus-pipeline.timer), [`infra/prometheus-pipeline.service`](../infra/prometheus-pipeline.service).\n+\n+Сейчас по ТЗ **автоматически запускается только быстрый crawl → `vacancies_stage`** (без enrich/LLM/score/promote). Расписание в **UTC**: `11:30` с небольшим случайным сдвигом до 2 минут. Команды enrich/normalize/dedup/score/promote запускаются вручную из UI или через `POST /pipeline/step/{name}`.
+Юниты: [`infra/prometheus-pipeline.timer`](../infra/prometheus-pipeline.timer), [`infra/prometheus-pipeline.service`](../infra/prometheus-pipeline.service).
+
+В **`prometheus-pipeline.timer` нет рабочего расписания** (заглушка до 2099 г.), чтобы не уходили деньги на фоновые краулы/LLM. Шаги enrich/normalize/dedup/score/promote — только вручную из UI или `POST /pipeline/step/{name}`.
+
+Если у вас на сервере таймер уже был включён ранее — отключите:
 
 ```bash
-cd /opt/prometheus-20 && git pull origin main
-chmod +x infra/run_crawl_stage.sh
-
-sudo cp infra/prometheus-pipeline.service infra/prometheus-pipeline.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now prometheus-pipeline.timer
-
-sudo systemctl list-timers --all | rg prometheus
-sudo systemctl status prometheus-pipeline.timer --no-pager
+sudo systemctl disable --now prometheus-pipeline.timer
 ```
 
-Разовый запуск без ожидания слота:
+Разовый crawl → stage вручную (после `chmod +x infra/run_crawl_stage.sh` и копирования unit-файлов):
 
 ```bash
 sudo systemctl start prometheus-pipeline.service
 sudo journalctl -u prometheus-pipeline.service -S today --no-pager
 ```
 
-Смена частоты: отредактируй `OnCalendar` в `prometheus-pipeline.timer`, затем `sudo systemctl daemon-reload` и `sudo systemctl restart prometheus-pipeline.timer`.
+Чтобы снова включить расписание, отредактируйте `OnCalendar` в `prometheus-pipeline.timer`, затем `sudo systemctl daemon-reload` и `sudo systemctl enable --now prometheus-pipeline.timer`.

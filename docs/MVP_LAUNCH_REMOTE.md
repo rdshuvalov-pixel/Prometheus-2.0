@@ -56,20 +56,12 @@ where is_default = true;
    - содержимое [db/migrations/0008_rls_strict.sql](../db/migrations/0008_rls_strict.sql) в SQL Editor, или
    - `DATABASE_URL=... python -m backend.scripts.apply_migrations --include-rls-strict`
 
-## VPS (backend API + таймер)
+## VPS (backend API)
 
 1. `git clone` репозитория на сервер, `cp .env.example .env`, те же ключи что локально.
 2. `bash infra/bootstrap.sh` — API на порту **8080** (см. [infra/bootstrap.sh](../infra/bootstrap.sh)).
 3. Откройте firewall для 8080 или поставьте reverse proxy + TLS.
-4. Systemd:
-
-```bash
-sudo cp infra/prometheus-pipeline.service infra/prometheus-pipeline.timer /etc/systemd/system/
-sudo systemctl daemon-reload
-sudo systemctl enable --now prometheus-pipeline.timer
-sudo systemctl status prometheus-pipeline.timer
-```
-
+4. **Автозапуск пайплайна по расписанию в репозитории отключён** (нет затрат LLM/краула в фоне). Если на сервере уже был включён таймер — отключите: `sudo systemctl disable --now prometheus-pipeline.timer`. Разовый crawl вручную: `sudo systemctl start prometheus-pipeline.service` (после копирования unit-файлов из `infra/`).
 5. В Vercel обновите `PROMETHEUS_API_URL` на публичный URL API (если используете Preview весов).
 
 ## E2E проверка

@@ -115,8 +115,8 @@ async def main_async(args: argparse.Namespace) -> None:
                     {
                         "id": str(sid),
                         "url": url[:300],
-                        "page_text_full_len": len((v.get("page_text_full") or "")),
-                        "desc_len": len((v.get("description") or "")),
+                        "page_text_full_len": len(v.get("page_text_full") or ""),
+                        "desc_len": len(v.get("description") or ""),
                         "timeout_s": int(args.timeout_s),
                     },
                     args.run_id,

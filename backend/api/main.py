@@ -19,6 +19,7 @@ from backend.writer.formal import generate_formal
 from backend.writer.profile_loader import load_profile_for_writing
 
 ROOT = Path(__file__).resolve().parents[2]
+CRAWL_BATCH_SIZE = "50"
 
 app = FastAPI(title="Prometheus 2.0 API", version="0.1.0")
 
@@ -93,8 +94,13 @@ async def pipeline_full(
             "all",
             "--concurrency",
             "4",
+            "--run-id",
+            run_id or "",
             "--profile-id",
             x_profile_id or "",
+            "--batch-size",
+            CRAWL_BATCH_SIZE,
+            "--all-batches",
             "--to-stage",
         ],
         [
@@ -198,7 +204,7 @@ async def pipeline_full(
         for cmd in steps:
             step_name = cmd[3].split(".")[-1].removeprefix("run_") if len(cmd) > 3 else "step"
             step_started = time.time()
-            log_event(run_id, f"{step_name}_started", {"cmd": cmd})
+            log_event(run_id, f"step_{step_name}_started", {"cmd": cmd})
             proc = subprocess.run(cmd, cwd=str(ROOT), env=env, check=False, capture_output=True, text=True)
             elapsed_ms = int((time.time() - step_started) * 1000)
             merge_run_metrics(
@@ -206,12 +212,12 @@ async def pipeline_full(
                 {f"{step_name}_exit_code": proc.returncode, f"{step_name}_elapsed_ms": elapsed_ms},
             )
             if proc.returncode == 0:
-                log_event(run_id, f"{step_name}_done", {"elapsed_ms": elapsed_ms})
+                log_event(run_id, f"step_{step_name}_done", {"elapsed_ms": elapsed_ms})
             else:
                 status = "error"
                 log_event(
                     run_id,
-                    f"{step_name}_error",
+                    f"step_{step_name}_error",
                     {
                         "elapsed_ms": elapsed_ms,
                         "exit_code": proc.returncode,
@@ -226,8 +232,6 @@ async def pipeline_full(
                 run_id,
                 {"finished_at_ts": finished, "elapsed_ms": int((finished - started) * 1000)},
             )
-            # finish_run overwrites metrics; pass what is currently in DB via merge_run_metrics only.
-            # Keep finish_run for finished_at + status update.
             finish_run(run_id, status, metrics={})
 
     bg.add_task(_runner)
@@ -327,8 +331,13 @@ async def pipeline_step(
             "all",
             "--concurrency",
             "4",
+            "--run-id",
+            run_id or "",
             "--profile-id",
             x_profile_id or "",
+            "--batch-size",
+            CRAWL_BATCH_SIZE,
+            "--all-batches",
             "--to-stage",
         ]
     elif name in ("crawl_filter", "filter_crawl", "post_crawl_filter"):

@@ -131,8 +131,17 @@ def finish_run(
     if cli is None:
         return
     finished = datetime.now(timezone.utc).isoformat()
+    try:
+        cur = cli.table("pipeline_runs").select("metrics").eq("id", run_id).limit(1).execute()
+        rows = getattr(cur, "data", None) or []
+        base = rows[0].get("metrics") if rows else {}
+        if not isinstance(base, dict):
+            base = {}
+    except Exception:
+        base = {}
+    merged = {**base, **metrics}
     cli.table("pipeline_runs").update(
-        {"finished_at": finished, "status": status, "metrics": metrics}
+        {"finished_at": finished, "status": status, "metrics": merged}
     ).eq("id", run_id).execute()
 
 

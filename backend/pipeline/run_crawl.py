@@ -17,7 +17,15 @@ from backend.crawlers.jobspy_crawler import fetch_jobspy_tier4
 from backend.crawlers.lever import fetch_lever_board, slug_from_url
 from backend.crawlers.playwright_generic import fetch_with_playwright
 from backend.crawlers.workable import fetch_workable, short_from_url
-from backend.db.client import apply_active_profile_id, finish_run, get_active_profile, insert_run, log_event
+from backend.db.client import (
+    apply_active_profile_id,
+    finish_run,
+    get_active_profile,
+    get_supabase,
+    insert_run,
+    log_event,
+    merge_run_metrics,
+)
 from backend.pipeline.crawl_alerts import record_failure
 from backend.pipeline.crawl_constants import PIPELINE_CRAWL_RAW
 from backend.pipeline.dedup import dedup_check, reapply_title_suffix
@@ -28,6 +36,8 @@ from backend.pipeline.raw_writer import persist_raw
 
 _REPO = Path(__file__).resolve().parents[2]
 _TARGETS = _REPO / "backend" / "sources" / "targets.yaml"
+DEFAULT_CRAWL_LIMIT = 50
+DEFAULT_CRAWL_BATCH_SIZE = 50
 
 
 async def collect_for_target(t: dict, profile) -> list:
@@ -84,24 +94,49 @@ def insert_stage(cli, row: dict) -> bool:
         return False
 
 
+def _resolve_run(profile_id: str | None, external_run_id: str | None) -> tuple[str | None, bool]:
+    if external_run_id:
+        return external_run_id, False
+    return insert_run(profile_id), True
+
+
+def _resolve_batch_size(args: argparse.Namespace) -> int:
+    raw = int(args.batch_size or 0)
+    if raw <= 0 and int(args.limit) > 0:
+        raw = int(args.limit)
+    if raw <= 0:
+        raw = DEFAULT_CRAWL_BATCH_SIZE
+    return max(1, raw)
+
+
 async def main_async(args: argparse.Namespace) -> None:
     apply_active_profile_id(args.profile_id)
     profile = get_active_profile()
     profile_id = str(profile.id) if profile.id else None
+    run_id, owns_run = _resolve_run(profile_id, args.run_id)
+    cli = get_supabase()
 
     if args.tier == "4":
-        run_id = insert_run(profile_id)
         log_event(
             run_id,
             "crawl_started",
-            {"tier": "4", "source": "jobspy", "targets": 0, "targets_total_yaml": 0, "limit": args.limit},
+            {
+                "tier": "4",
+                "source": "jobspy",
+                "targets": 0,
+                "targets_total_yaml": 0,
+                "limit": args.limit,
+                "slice": 0,
+                "batch_size": _resolve_batch_size(args),
+                "all_batches": False,
+                "batches_total": 1,
+            },
         )
         rwanted = args.limit if args.limit and args.limit > 0 else 50
         raws = fetch_jobspy_tier4(profile.search_keywords, results_wanted=rwanted)
         processed = len(raws)
         kept = 0
         rejected = 0
-        cli = __import__("backend.db.client", fromlist=["get_supabase"]).get_supabase()
         for rv in raws:
             persist_raw(rv)
             if args.to_stage and not args.filter_at_crawl:
@@ -164,10 +199,37 @@ async def main_async(args: argparse.Namespace) -> None:
             }
             if profile_id and (insert_stage(cli, row_insert) if args.to_stage else insert_vacancy(cli, row_insert)):
                 kept += 1
-        metrics = {"processed": processed, "kept": kept, "rejected": rejected}
+        metrics = {
+            "processed": processed,
+            "kept": kept,
+            "rejected": rejected,
+            "crawl_errors": 0,
+            "crawl_batch_size": _resolve_batch_size(args),
+            "crawl_batches_total": 1,
+            "crawl_batches_completed": 1,
+            "crawl_targets_total": 0,
+            "crawl_targets_selected": 0,
+            "crawl_mode": "jobspy_tier4",
+            "current_step": "crawl",
+        }
         if run_id:
+            merge_run_metrics(run_id, metrics)
+        if run_id and owns_run:
             finish_run(run_id, "ok", metrics)
-        print(json.dumps(metrics, ensure_ascii=False))
+        log_event(
+            run_id,
+            "crawl_finished",
+            {
+                "tier": "4",
+                "source": "jobspy",
+                "processed": processed,
+                "kept": kept,
+                "rejected": rejected,
+                "crawl_errors": 0,
+                "batches_total": 1,
+            },
+        )
+        print(json.dumps({"processed": processed, "kept": kept, "rejected": rejected}, ensure_ascii=False))
         return
 
     if not _TARGETS.exists():
@@ -178,9 +240,9 @@ async def main_async(args: argparse.Namespace) -> None:
     tier_filter = args.tier
     all_targets = data.get("targets", [])
     targets = [t for t in all_targets if tier_filter in ("all", str(t.get("tier")))]
-    slice_targets = targets if args.limit == 0 else targets[: args.limit]
-
-    run_id = insert_run(profile_id)
+    batch_size = _resolve_batch_size(args)
+    selected_targets = targets if args.all_batches or args.limit == 0 else targets[: args.limit]
+    batches_total = (len(selected_targets) + batch_size - 1) // batch_size if selected_targets else 0
     log_event(
         run_id,
         "crawl_started",
@@ -188,19 +250,36 @@ async def main_async(args: argparse.Namespace) -> None:
             "tier": tier_filter,
             "targets": len(targets),
             "targets_total_yaml": len(all_targets),
-            "limit": args.limit,
-            "slice": len(slice_targets),
+            "limit": 0 if args.all_batches else args.limit,
+            "slice": len(selected_targets),
+            "batch_size": batch_size,
+            "all_batches": bool(args.all_batches),
+            "batches_total": batches_total,
         },
     )
-
-    from backend.db.client import get_supabase
-
-    cli = get_supabase()
+    if run_id:
+        merge_run_metrics(
+            run_id,
+            {
+                "current_step": "crawl",
+                "crawl_mode": "all_batches" if args.all_batches else "slice",
+                "crawl_targets_total": len(targets),
+                "crawl_targets_selected": len(selected_targets),
+                "crawl_batch_size": batch_size,
+                "crawl_batches_total": batches_total,
+                "crawl_batches_completed": 0,
+                "processed": 0,
+                "kept": 0,
+                "rejected": 0,
+                "crawl_errors": 0,
+            },
+        )
     processed = 0
     kept = 0
     rejected = 0
+    crawl_errors = 0
 
-    async def process_target(t: dict) -> tuple[int, int, int]:
+    async def process_target(t: dict) -> tuple[int, int, int, int]:
         company_name = t.get("company") or ""
         t0 = time.perf_counter()
         log_event(
@@ -396,36 +475,149 @@ async def main_async(args: argparse.Namespace) -> None:
                 "elapsed_ms": elapsed_ms,
             },
         )
-        return (target_processed, target_kept, target_rejected)
+        return (target_processed, target_kept, target_rejected, 1 if errored else 0)
 
-    q: asyncio.Queue[dict | None] = asyncio.Queue()
-    for t in slice_targets:
-        q.put_nowait(t)
-    workers_n = max(1, int(args.concurrency))
-    for _ in range(workers_n):
-        q.put_nowait(None)
+    async def process_batch(batch_targets: list[dict]) -> tuple[int, int, int, int]:
+        batch_processed = 0
+        batch_kept = 0
+        batch_rejected = 0
+        batch_errors = 0
+        q: asyncio.Queue[dict | None] = asyncio.Queue()
+        for target in batch_targets:
+            q.put_nowait(target)
+        workers_n = max(1, int(args.concurrency))
+        for _ in range(workers_n):
+            q.put_nowait(None)
 
-    async def worker() -> None:
-        nonlocal processed, kept, rejected
-        while True:
-            t = await q.get()
-            try:
-                if t is None:
-                    return
-                tp, tk, tr = await process_target(t)
-                processed += tp
-                kept += tk
-                rejected += tr
-            finally:
-                q.task_done()
+        async def worker() -> None:
+            nonlocal batch_processed, batch_kept, batch_rejected, batch_errors
+            while True:
+                t = await q.get()
+                try:
+                    if t is None:
+                        return
+                    tp, tk, tr, te = await process_target(t)
+                    batch_processed += tp
+                    batch_kept += tk
+                    batch_rejected += tr
+                    batch_errors += te
+                finally:
+                    q.task_done()
 
-    await asyncio.gather(*(worker() for _ in range(workers_n)))
+        await asyncio.gather(*(worker() for _ in range(workers_n)))
+        return (batch_processed, batch_kept, batch_rejected, batch_errors)
 
-    metrics = {"processed": processed, "kept": kept, "rejected": rejected}
+    batches = (
+        [selected_targets[i : i + batch_size] for i in range(0, len(selected_targets), batch_size)]
+        if args.all_batches
+        else ([selected_targets] if selected_targets else [])
+    )
+
+    for batch_index, batch_targets in enumerate(batches, start=1):
+        batch_from = ((batch_index - 1) * batch_size) + 1
+        batch_to = batch_from + len(batch_targets) - 1
+        batch_started_at = time.perf_counter()
+        log_event(
+            run_id,
+            "crawl_batch_started",
+            {
+                "batch_index": batch_index,
+                "batches_total": batches_total,
+                "batch_size": len(batch_targets),
+                "configured_batch_size": batch_size,
+                "targets_total": len(selected_targets),
+                "from": batch_from,
+                "to": batch_to,
+            },
+        )
+        batch_processed, batch_kept, batch_rejected, batch_errors = await process_batch(batch_targets)
+        batch_elapsed_ms = int((time.perf_counter() - batch_started_at) * 1000)
+        processed += batch_processed
+        kept += batch_kept
+        rejected += batch_rejected
+        crawl_errors += batch_errors
+        if run_id:
+            merge_run_metrics(
+                run_id,
+                {
+                    "current_step": "crawl",
+                    "processed": processed,
+                    "kept": kept,
+                    "rejected": rejected,
+                    "crawl_errors": crawl_errors,
+                    "crawl_batches_total": batches_total,
+                    "crawl_batches_completed": batch_index,
+                    "crawl_batch_size": batch_size,
+                    "crawl_targets_total": len(targets),
+                    "crawl_targets_selected": len(selected_targets),
+                },
+            )
+        log_event(
+            run_id,
+            "crawl_batch_done",
+            {
+                "batch_index": batch_index,
+                "batches_total": batches_total,
+                "batch_size": len(batch_targets),
+                "configured_batch_size": batch_size,
+                "targets_total": len(selected_targets),
+                "from": batch_from,
+                "to": batch_to,
+                "processed": batch_processed,
+                "kept": batch_kept,
+                "rejected": batch_rejected,
+                "errors": batch_errors,
+                "elapsed_ms": batch_elapsed_ms,
+                "processed_total": processed,
+                "kept_total": kept,
+                "rejected_total": rejected,
+                "errors_total": crawl_errors,
+            },
+        )
+        log_event(
+            run_id,
+            "crawl_progress",
+            {
+                "batches_completed": batch_index,
+                "batches_total": batches_total,
+                "processed_total": processed,
+                "kept_total": kept,
+                "rejected_total": rejected,
+                "errors_total": crawl_errors,
+            },
+        )
+
+    metrics = {
+        "processed": processed,
+        "kept": kept,
+        "rejected": rejected,
+        "crawl_errors": crawl_errors,
+        "crawl_targets_total": len(targets),
+        "crawl_targets_selected": len(selected_targets),
+        "crawl_batch_size": batch_size,
+        "crawl_batches_total": batches_total,
+        "crawl_batches_completed": batches_total,
+        "crawl_mode": "all_batches" if args.all_batches else "slice",
+        "current_step": "crawl",
+    }
     if run_id:
+        merge_run_metrics(run_id, metrics)
+    if run_id and owns_run:
         finish_run(run_id, "ok", metrics)
-    log_event(run_id, "crawl_finished", metrics)
-    print(json.dumps(metrics, ensure_ascii=False))
+    log_event(
+        run_id,
+        "crawl_finished",
+        {
+            "processed": processed,
+            "kept": kept,
+            "rejected": rejected,
+            "crawl_errors": crawl_errors,
+            "targets_total": len(selected_targets),
+            "batch_size": batch_size,
+            "batches_total": batches_total,
+        },
+    )
+    print(json.dumps({"processed": processed, "kept": kept, "rejected": rejected}, ensure_ascii=False))
 
 
 def main() -> None:
@@ -434,11 +626,14 @@ def main() -> None:
     parser.add_argument(
         "--limit",
         type=int,
-        default=50,
+        default=DEFAULT_CRAWL_LIMIT,
         help="Число целей tier (0 = без ограничения, обходит все)",
     )
+    parser.add_argument("--batch-size", dest="batch_size", type=int, default=0, help="Размер последовательного батча")
+    parser.add_argument("--all-batches", action="store_true", help="Обойти все targets последовательно батчами")
     parser.add_argument("--concurrency", type=int, default=3, help="Parallel targets to crawl")
     parser.add_argument("--target-timeout-s", dest="target_timeout_s", type=int, default=120, help="Timeout per target")
+    parser.add_argument("--run-id", dest="run_id", default=None, help="UUID pipeline_runs для внешнего запуска")
     parser.add_argument("--profile-id", dest="profile_id", default=None, help="UUID профиля candidate_profiles")
     parser.add_argument("--to-stage", action="store_true", help="Писать результаты в vacancies_stage вместо vacancies")
     parser.add_argument(
